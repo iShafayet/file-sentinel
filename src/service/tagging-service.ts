@@ -5,46 +5,15 @@ import { Config, VerificationMode } from "../model/config.js";
 import constants from "../constant/common-constants.js";
 import { FileMetaData, fileMetaDataSchema } from "../model/file-meta-data.js";
 import { cryptoService } from "./crypto-service.js";
+import { getMetaFilePath } from "../utility/meta-data-utils.js";
+import { discoveryService } from "./discovery-service.js";
 
 class TaggingService {
-
-  private getMetaFilePath(childFilePath: string, rootDir: string, metaDataRootDir: string): string {
-    const relativePath = childFilePath.replace(rootDir, "");
-    const fileName = path.basename(relativePath);
-    const dirPath = path.dirname(relativePath);
-    const metaFileName = constants.META_FILE_PREFIX + fileName + constants.META_FILE_SUFFIX;
-    return path.join(metaDataRootDir, dirPath, metaFileName);
-  }
-
-  private populateFilesToTag(dir: string, rootDir: string, metaDataRootDir: string, fileToTagList: string[], fileToPotentialUpdateList: string[]): void {
-    const childList = fs.readdirSync(dir);
-    for (const child of childList) {
-      const childPath = path.join(dir, child);
-      const childStat = fs.statSync(childPath);
-      if (childStat.isDirectory()) {
-        this.populateFilesToTag(childPath, rootDir, metaDataRootDir, fileToTagList, fileToPotentialUpdateList);
-        continue;
-      }
-      if (child.startsWith(constants.META_FILE_PREFIX)) {
-        continue;
-      }
-      if (childStat.isFile()) {
-        const metaDataPath = this.getMetaFilePath(childPath, rootDir, metaDataRootDir);
-        if (!fs.existsSync(metaDataPath)) {
-          logger.log(`(tagging-service)> File ${childPath} is new`);
-          fileToTagList.push(childPath);
-        } else {
-          logger.log(`(tagging-service)> File ${childPath} has existing meta data`);
-          fileToPotentialUpdateList.push(childPath);
-        }
-      }
-    }
-  }
 
   private async tagFile(filePath: string, rootDir: string, metaDataRootDir: string): Promise<void> {
     const relativeFilePath = filePath.replace(rootDir, "");
     logger.log(`(tagging-service)> Tagging file: ${relativeFilePath}`);
-    const metaDataPath = this.getMetaFilePath(filePath, rootDir, metaDataRootDir);
+    const metaDataPath = getMetaFilePath(filePath, rootDir, metaDataRootDir);
     const fileStat = fs.statSync(filePath);
     const hash = await cryptoService.generateSha256HashFromFile(filePath, fileStat.size);
     const metaData: FileMetaData = {
@@ -74,7 +43,7 @@ class TaggingService {
   private async updateFileTagIfNeeded(filePath: string, rootDir: string, metaDataRootDir: string, verificationMode: VerificationMode): Promise<void> {
     const relativeFilePath = filePath.replace(rootDir, "");
     logger.log(`(tagging-service)> Potentially updating file: ${relativeFilePath}`);
-    const metaDataPath = this.getMetaFilePath(filePath, rootDir, metaDataRootDir);
+    const metaDataPath = getMetaFilePath(filePath, rootDir, metaDataRootDir);
 
     const existingMeta: FileMetaData = JSON.parse(fs.readFileSync(metaDataPath, "utf-8"));
     const { error } = fileMetaDataSchema.validate(existingMeta);
@@ -123,7 +92,7 @@ class TaggingService {
 
     const fileToTagList: string[] = [];
     const fileToPotentialUpdateList: string[] = [];
-    this.populateFilesToTag(config.target.dir, config.target.dir, config.target.metaDataDir || config.target.dir, fileToTagList, fileToPotentialUpdateList);
+    discoveryService.populateFilesToTag(config.target.dir, config.target.dir, config.target.metaDataDir || config.target.dir, fileToTagList, fileToPotentialUpdateList);
 
     for (const filePath of fileToTagList) {
       await this.tagFile(filePath, config.target.dir, config.target.metaDataDir || config.target.dir);
@@ -140,7 +109,7 @@ class TaggingService {
     logger.log("(core-service)> Tagging new files");
 
     const fileToTagList: string[] = [];
-    this.populateFilesToTag(config.target.dir, config.target.dir, config.target.metaDataDir || config.target.dir, fileToTagList, []);
+    discoveryService.populateFilesToTag(config.target.dir, config.target.dir, config.target.metaDataDir || config.target.dir, fileToTagList, []);
 
     for (const filePath of fileToTagList) {
       await this.tagFile(filePath, config.target.dir, config.target.metaDataDir || config.target.dir);
