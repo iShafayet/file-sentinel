@@ -1,3 +1,5 @@
+#!/usr/bin/env node
+
 import { Config } from "./model/config.js";
 import {
   extractProcessParams,
