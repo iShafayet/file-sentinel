@@ -7,6 +7,9 @@
   "private": true,
   "type": "module",
   "main": "src/start.ts",
+  "bin": {
+    "file-sentinel": "dist/start.js"
+  },
   "scripts": {
     "build": "npx tsc",
     "dev": "concurrently \"npx tsc --watch\" \"nodemon -q dist/start.js\"",
