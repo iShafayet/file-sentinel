@@ -18,6 +18,7 @@ export type Config = {
   recovery: {
     mirrorDir: string;
     mirrorMetaDataDir: string | null;
+    mirrorModificationTakesPrecedence: boolean;
     verifyAfterRecovery: boolean;
   } | null;
 };
@@ -36,6 +37,7 @@ export const ConfigSchema = Joi.object({
   recovery: Joi.object({
     mirrorDir: Joi.string().required(),
     mirrorMetaDataDir: Joi.string().optional(),
+    mirrorModificationTakesPrecedence: Joi.boolean().required(),
     verifyAfterRecovery: Joi.boolean().required(),
   }).allow(null).required(),
 });

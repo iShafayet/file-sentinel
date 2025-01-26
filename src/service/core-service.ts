@@ -2,6 +2,7 @@ import { logger } from "../lib/logger.js";
 import { Config } from "../model/config.js";
 import { taggingService } from "./tagging-service.js";
 import { integrityService } from "./integrity-service.js";
+import { recoveryService } from "./recovery-service.js";
 class CoreService {
 
   async handle(config: Config): Promise<void> {
@@ -14,7 +15,7 @@ class CoreService {
     } else if (config.operation === "verify-integrity") {
       await integrityService.verifyIntegrity(config);
     } else if (config.operation === "verify-and-recover") {
-      this.verifyAndRecover(config);
+      await recoveryService.checkIntegrityAndRecover(config);
     }
   }
 
