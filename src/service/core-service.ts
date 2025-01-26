@@ -10,7 +10,7 @@ class CoreService {
     } else if (config.operation === "tag-new-only") {
       await taggingService.tagNewOnly(config);
     } else if (config.operation === "tag-new-and-update") {
-      this.tagNewAndUpdate(config);
+      await taggingService.tagNewAndUpdateExisting(config);
     } else if (config.operation === "verify-integrity") {
       this.verifyIntegrity(config);
     } else if (config.operation === "verify-and-recover") {
