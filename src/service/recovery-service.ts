@@ -1,0 +1,100 @@
+import path from "path";
+import { logger } from "../lib/logger.js";
+import { Config } from "../model/config.js";
+import { FileMetaData, fileMetaDataSchema } from "../model/file-meta-data.js";
+import { getMetaFilePath, getRecoveryFilePath } from "../utility/meta-data-utils.js";
+import { integrityService } from "./integrity-service.js";
+import fs from "fs";
+
+class RecoveryService {
+
+  private async recoverFile(filePath: string, config: Config): Promise<boolean> {
+    logger.log(`(recovery-service)> Recovering file: ${filePath}`);
+
+    // We need to at least be able to check local meta data
+    const localMetaFilePath = getMetaFilePath(filePath, config.target.dir, config.target.metaDataDir || config.target.dir);
+    const localMetaData: FileMetaData = JSON.parse(fs.readFileSync(localMetaFilePath, "utf-8"));
+    const { error } = fileMetaDataSchema.validate(localMetaData);
+    if (error) {
+      logger.log(`(recovery-service)> Local meta data file has invalid meta data: ${localMetaFilePath}`);
+      return false;
+    }
+
+    const recoveryFilePath = getRecoveryFilePath(filePath, config.target.dir, config.recovery!.mirrorDir);
+    const recoveryMetaFilePath = getMetaFilePath(recoveryFilePath, config.recovery!.mirrorDir, config.recovery!.mirrorMetaDataDir || config.recovery!.mirrorDir);
+
+    if (!fs.existsSync(recoveryFilePath)) {
+      logger.log(`(recovery-service)> Recovery file does not exist: ${recoveryFilePath}`);
+      return false;
+    }
+
+    if (!fs.existsSync(recoveryMetaFilePath)) {
+      logger.log(`(recovery-service)> Recovery meta data file does not exist: ${recoveryMetaFilePath}`);
+      return false;
+    }
+
+    // Get mirror meta data
+    const recoveryMetaData: FileMetaData = JSON.parse(fs.readFileSync(recoveryMetaFilePath, "utf-8"));
+    const { error: recoveryError } = fileMetaDataSchema.validate(recoveryMetaData);
+    if (recoveryError) {
+      logger.log(`(recovery-service)> Recovery meta data file has invalid meta data: ${recoveryMetaFilePath}`);
+      return false;
+    }
+
+    if (recoveryMetaData.hash.sha256 !== localMetaData.hash.sha256) {
+      if (config.recovery!.mirrorModificationTakesPrecedence) {
+        logger.log(`(recovery-service)> Meta data hash on mirror does not match local meta data hash. Mirror modification takes precedence. Proceeding with recovery.`);
+      } else {
+        logger.log(`(recovery-service)> Meta data hash on mirror does not match local meta data hash. Since mirror modification does not take precedence, skipping recovery.`);
+        return false;
+      }
+    }
+
+    const fullFilePath = path.join(config.target.dir, filePath);
+    const fullRecoveryFilePath = recoveryFilePath;
+
+    // Remove local file
+    fs.unlinkSync(fullFilePath);
+
+    // Copy recovery file to local file
+    fs.copyFileSync(fullRecoveryFilePath, fullFilePath);
+    fs.utimesSync(fullFilePath, new Date(recoveryMetaData.file.modifiedAt), new Date(recoveryMetaData.file.modifiedAt));
+
+    // Update local meta data
+    fs.writeFileSync(localMetaFilePath, JSON.stringify(recoveryMetaData, null, 2));
+
+    logger.log(`(recovery-service)> Successfully recovered file: ${filePath}`);
+
+    return true;
+  }
+
+  async checkIntegrityAndRecover(config: Config): Promise<void> {
+    if (!config.recovery) {
+      logger.log("(recovery-service)> No recovery configuration found. Skipping recovery.");
+      return;
+    }
+
+    logger.log("(recovery-service)> Checking integrity before recovering.");
+    const listMap = await integrityService.verifyIntegrity(config);
+
+    if (listMap.failed.length === 0) {
+      logger.log("(recovery-service)> No files to recover.");
+      return;
+    }
+
+    logger.log(`(recovery-service)> ${listMap.failed.length} files to recover.`);
+
+    let recoveredCount = 0;
+    for (const filePath of listMap.failed) {
+      const wasRecovered = await this.recoverFile(filePath, config);
+      if (wasRecovered) {
+        recoveredCount++;
+      }
+    }
+
+    logger.log(`(recovery-service)> ${recoveredCount}/${listMap.failed.length} files recovered.`);
+  }
+
+}
+
+export const recoveryService = new RecoveryService();
