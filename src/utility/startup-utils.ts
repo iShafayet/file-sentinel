@@ -1,5 +1,6 @@
 import { readFileSync } from "fs";
 import { Config, ConfigSchema } from "../model/config.js";
+import { parseCommandLineArgs } from "./cli-parser.js";
 
 export const extractProcessParams = () => {
   console.log("STARTUP extractProcessParams", process.argv);
@@ -37,18 +38,26 @@ export const loadConfig = (path: string): Config => {
   const config = JSON.parse(content) as Config;
   validateAndOptimizeConfig(config);
   console.log(`STARTUP optimized config: ${JSON.stringify(config)}`);
+  process.exit(0);
   return config;
 };
 
 const ARG_CONFIG_LOCATION = "--config";
-const ENVIRONMENT_CONFIG_LOCATION_KEY = "BLOBER_CONFIG_LOCATION";
+const ENVIRONMENT_CONFIG_LOCATION_KEY = "FILE_SENTINEL_CONFIG_LOCATION";
 
-export const lookupAndLoadConfigAsync = (commandLineParams: string[], overrideConfigLocation?: string) => {
+export const lookupAndLoadConfigAsync = (commandLineParams: string[], overrideConfigLocation?: string): Config => {
+  // First try to load from command line arguments
+  const cliConfig = parseCommandLineArgs();
+  if (cliConfig) {
+    return cliConfig;
+  }
+
+  // Otherwise fall back to config file. Process override from test suite (if any)
   if (overrideConfigLocation) {
     return loadConfig(overrideConfigLocation);
   }
 
-  // First priority is the command line parameter;
+  // Next priority is the command line parameter;
   if (commandLineParams.indexOf(ARG_CONFIG_LOCATION) > -1) {
     let index = commandLineParams.indexOf(ARG_CONFIG_LOCATION) + 1;
     let configLocation = commandLineParams[index];
@@ -70,5 +79,5 @@ export const lookupAndLoadConfigAsync = (commandLineParams: string[], overrideCo
     return loadConfig(configLocation);
   }
 
-  throw new Error("No config location found");
+  throw new Error("No valid configuration found from CLI args or config file");
 };

@@ -18,6 +18,7 @@
   "dependencies": {
     "@seald-io/nedb": "^3.0.0",
     "check-disk-space": "^3.3.1",
+    "commander": "^13.1.0",
     "joi": "^17.6.0"
   },
   "devDependencies": {
