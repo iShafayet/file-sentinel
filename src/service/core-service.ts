@@ -1,0 +1,34 @@
+import { logger } from "../lib/logger.js";
+import { Config } from "../model/config.js";
+import { taggingService } from "./tagging-service.js";
+
+class CoreService {
+
+  handle(config: Config): void {
+    if (config.operation === "untag") {
+      taggingService.untag(config);
+    } else if (config.operation === "tag-new-only") {
+      taggingService.tagNewOnly(config);
+    } else if (config.operation === "tag-new-and-update") {
+      this.tagNewAndUpdate(config);
+    } else if (config.operation === "verify-integrity") {
+      this.verifyIntegrity(config);
+    } else if (config.operation === "verify-and-recover") {
+      this.verifyAndRecover(config);
+    }
+  }
+
+  private tagNewAndUpdate(config: Config): void {
+    logger.log("(core-service)> Tagging new files and updating existing files");
+  }
+
+  private verifyIntegrity(config: Config): void {
+    logger.log("(core-service)> Verifying integrity");
+  }
+
+  private verifyAndRecover(config: Config): void {
+    logger.log("(core-service)> Verifying and recovering");
+  }
+}
+
+export const coreService = new CoreService();

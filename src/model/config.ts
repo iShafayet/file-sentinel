@@ -1,6 +1,6 @@
 import Joi from "joi";
 
-export type Operation = "tag-new" | "update-tags" | "verify-integrity" | "verify-and-recover";
+export type Operation = "untag" | "tag-new-only" | "tag-new-and-update" | "verify-integrity" | "verify-and-recover";
 
 export type VerificationMode = "size" | "size-and-hash";
 
@@ -18,14 +18,14 @@ export type Config = {
     mirrorDir: string;
     mirrorMetaDataDir: string | null;
     verifyAfterRecovery: boolean;
-  };
+  } | null;
 };
 
 export const ConfigSchema = Joi.object({
-  operation: Joi.string().valid("tag-new", "update-tags", "verify-integrity", "verify-and-recover").required(),
+  operation: Joi.string().valid("untag", "tag-new-only", "tag-new-and-update", "verify-integrity", "verify-and-recover").required(),
   target: Joi.object({
     dir: Joi.string().required(),
-    metaDataDir: Joi.string().optional(),
+    metaDataDir: Joi.string().allow(null).required(),
   }),
   verification: Joi.object({
     mode: Joi.string().valid("size", "size-and-hash").required(),
@@ -35,5 +35,5 @@ export const ConfigSchema = Joi.object({
     mirrorDir: Joi.string().required(),
     mirrorMetaDataDir: Joi.string().optional(),
     verifyAfterRecovery: Joi.boolean().required(),
-  }),
+  }).allow(null).required(),
 });

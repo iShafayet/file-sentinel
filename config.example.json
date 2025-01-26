@@ -1,0 +1,16 @@
+{
+  "operation": "verify-integrity",
+  "target": {
+    "dir": "/path/to/target/directory",
+    "metaDataDir": "/optional/path/to/metadata/directory"
+  },
+  "verification": {
+    "mode": "size-and-hash",
+    "hash": "sha256"
+  },
+  "recovery": {
+    "mirrorDir": "/path/to/mirror/directory",
+    "mirrorMetaDataDir": "/optional/path/to/mirror/metadata/directory",
+    "verifyAfterRecovery": true
+  }
+}
