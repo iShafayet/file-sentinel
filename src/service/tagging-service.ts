@@ -4,6 +4,7 @@ import { logger } from "../lib/logger.js";
 import { Config } from "../model/config.js";
 import constants from "../constant/common-constants.js";
 import { FileMetaData } from "../model/file-meta-data.js";
+import { cryptoService } from "./crypto-service.js";
 
 class TaggingService {
 
@@ -37,11 +38,12 @@ class TaggingService {
     }
   }
 
-  private tagFile(filePath: string, rootDir: string, metaDataRootDir: string): void {
+  private async tagFile(filePath: string, rootDir: string, metaDataRootDir: string): Promise<void> {
     const relativeFilePath = filePath.replace(rootDir, "");
     logger.log(`(tagging-service)> Tagging file: ${relativeFilePath}`);
     const metaDataPath = this.getMetaFilePath(filePath, rootDir, metaDataRootDir);
     const fileStat = fs.statSync(filePath);
+    const hash = await cryptoService.generateSha256HashFromFile(filePath, fileStat.size);
     const metaData: FileMetaData = {
       file: {
         name: relativeFilePath,
@@ -50,7 +52,7 @@ class TaggingService {
         modifiedAt: fileStat.mtime.getTime()
       },
       hash: {
-        sha256: ""
+        sha256: hash
       },
       verification: {
         lastVerifiedAt: Date.now(),
@@ -66,14 +68,14 @@ class TaggingService {
     fs.writeFileSync(metaDataPath, metaDataString);
   }
 
-  tagNewOnly(config: Config): void {
+  async tagNewOnly(config: Config): Promise<void> {
     logger.log("(core-service)> Tagging new files");
 
     const fileToTagList: string[] = [];
     this.populateFilesToTag(config.target.dir, config.target.dir, config.target.metaDataDir || config.target.dir, fileToTagList);
 
     for (const filePath of fileToTagList) {
-      this.tagFile(filePath, config.target.dir, config.target.metaDataDir || config.target.dir);
+      await this.tagFile(filePath, config.target.dir, config.target.metaDataDir || config.target.dir);
     }
 
     logger.log(`(tagging-service)> Tagged ${fileToTagList.length} files`);

@@ -4,6 +4,7 @@
     "dir": "/path/to/target/directory",
     "metaDataDir": "/optional/path/to/metadata/directory"
   },
+  "hashRecheckThresholdMillis": 2592000000,
   "verification": {
     "mode": "size-and-hash",
     "hash": "sha256"

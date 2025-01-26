@@ -10,6 +10,7 @@ export type Config = {
     dir: string;
     metaDataDir: string | null;
   };
+  hashRecheckThresholdMillis: number;
   verification: {
     mode: VerificationMode;
     hash: "sha256";
@@ -27,6 +28,7 @@ export const ConfigSchema = Joi.object({
     dir: Joi.string().required(),
     metaDataDir: Joi.string().allow(null).required(),
   }),
+  hashRecheckThresholdMillis: Joi.number().min(0).required(),
   verification: Joi.object({
     mode: Joi.string().valid("size", "size-and-hash").required(),
     hash: Joi.string().valid("sha256").required(),
