@@ -28,7 +28,7 @@ export class FileSentinelProgram {
   private async run() {
     const operation = this.config.operation;
     logger.log(`(program)> Running file-sentinel. operation: "${operation}"`);
-    coreService.handle(this.config);
+    await coreService.handle(this.config);
     logger.log("(program)> Run complete");
   }
 

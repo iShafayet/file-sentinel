@@ -4,11 +4,11 @@ import { taggingService } from "./tagging-service.js";
 
 class CoreService {
 
-  handle(config: Config): void {
+  async handle(config: Config): Promise<void> {
     if (config.operation === "untag") {
-      taggingService.untag(config);
+      await taggingService.untag(config);
     } else if (config.operation === "tag-new-only") {
-      taggingService.tagNewOnly(config);
+      await taggingService.tagNewOnly(config);
     } else if (config.operation === "tag-new-and-update") {
       this.tagNewAndUpdate(config);
     } else if (config.operation === "verify-integrity") {
