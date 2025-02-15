@@ -24,17 +24,21 @@
     "commander": "^13.1.0",
     "joi": "^17.6.0"
   },
+  "engines": {
+    "node": ">=18.0.0"
+  },
   "devDependencies": {
+    "@types/jest": "^29.5.14",
     "@types/node": "^17.0.35",
     "@typescript-eslint/eslint-plugin": "^5.26.0",
     "@typescript-eslint/parser": "^5.26.0",
     "concurrently": "^7.2.1",
     "eslint": "^8.16.0",
     "eslint-plugin-jest": "^26.4.6",
-    "jest": "^27.5.1",
+    "jest": "^29.7.0",
     "node-fetch": "^3.2.3",
-    "nodemon": "^2.0.16",
+    "nodemon": "^3.1.9",
     "stream-equal": "^2.0.1",
-    "typescript": "^4.7.2"
+    "typescript": "^4.9.5"
   }
 }

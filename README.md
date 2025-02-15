@@ -4,7 +4,7 @@ File integrity daemon with automated replica and recovery.
 
 ## To run (directly on development machine)
 
-1. Have nodejs 16 (LTS) or newer installed.
+1. Have nodejs 18 (LTS) or newer installed.
 2. Then run `npm i`
 3. Run `npm run start-compiled`.
 
