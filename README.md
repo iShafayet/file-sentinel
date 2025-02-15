@@ -2,17 +2,19 @@
 
 File integrity daemon with automated replica and recovery.
 
-## To run (directly on development machine, with livereload)
+## To run (directly on development machine)
 
 1. Have nodejs 16 (LTS) or newer installed.
 2. Then run `npm i`
-3. Run `npm run dev`.
-4. Server should be accessible at http://localhost:9241/
+3. Run `npm run start-compiled`.
 
 ## To run integration tests locally (directly on development machine)
 
-1. Make sure you have the server running at http://localhost:9241/
-2. Server should be accessible at http://localhost:9241/
+Run `npm run test`
+
+## To install as a cli tool
+
+Run `npm run install-cli`
 
 ## Command line usage
 
@@ -27,7 +29,24 @@ node dist/start.js \
   --mirror-dir "/example/mirror" \
   --mirror-metadata-dir "/example/mirror-meta" \
   --mirror-precedence true \
-  --verify-after-recovery true
+  --verify-after-recovery true \
+  --panic-on-error true
+```
+
+Or, if you installed the cli tool, you can run:
+
+```bash
+file-sentinel \
+  --operation verify-and-recover \
+  --target-dir "/example/target" \
+  --target-metadata-dir "/example/target-meta" \
+  --hash-recheck-threshold 0 \
+  --verification-mode size-and-hash \
+  --mirror-dir "/example/mirror" \
+  --mirror-metadata-dir "/example/mirror-meta" \
+  --mirror-precedence true \
+  --verify-after-recovery true \
+  --panic-on-error true
 ```
 
 ## Author and License

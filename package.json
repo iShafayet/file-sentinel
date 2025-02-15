@@ -12,11 +12,11 @@
   },
   "scripts": {
     "build": "npx tsc",
-    "dev": "concurrently \"npx tsc --watch\" \"nodemon -q dist/start.js\"",
     "lint": "eslint .",
     "start-compiled": "npx tsc && node dist/start.js",
     "start": "node dist/start.js",
-    "test": "npm run build && node --experimental-vm-modules node_modules/jest/bin/jest.js"
+    "test": "npm run build && node --experimental-vm-modules node_modules/jest/bin/jest.js",
+    "install-cli": "npm run build && npm install -g ."
   },
   "dependencies": {
     "@seald-io/nedb": "^3.0.0",
