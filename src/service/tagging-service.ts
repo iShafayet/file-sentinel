@@ -7,6 +7,7 @@ import { FileMetaData, fileMetaDataSchema } from "../model/file-meta-data.js";
 import { cryptoService } from "./crypto-service.js";
 import { getMetaFilePath } from "../utility/meta-data-utils.js";
 import { discoveryService } from "./discovery-service.js";
+import { errorService } from "./error-service.js";
 
 class TaggingService {
 
@@ -87,7 +88,7 @@ class TaggingService {
     throw new Error("Code should not reach here");
   }
 
-  async tagNewAndUpdateExisting(config: Config): Promise<void> {
+  public async tagNewAndUpdateExisting(config: Config): Promise<void> {
     logger.log("(tagging-service)> Tagging new files and updating existing files");
 
     const fileToTagList: string[] = [];
@@ -95,24 +96,39 @@ class TaggingService {
     discoveryService.populateFilesToTag(config.target.dir, config.target.dir, config.target.metaDataDir || config.target.dir, fileToTagList, fileToPotentialUpdateList);
 
     for (const filePath of fileToTagList) {
-      await this.tagFile(filePath, config.target.dir, config.target.metaDataDir || config.target.dir);
+      try {
+        await this.tagFile(filePath, config.target.dir, config.target.metaDataDir || config.target.dir);
+      } catch (error) {
+        logger.log(`(tagging-service)> Error while tagging file: ${filePath}`);
+        errorService.handleErrorDuringIteration(error);
+      }
     }
 
     for (const filePath of fileToPotentialUpdateList) {
-      await this.updateFileTagIfNeeded(filePath, config.target.dir, config.target.metaDataDir || config.target.dir, config.verification.mode);
+      try {
+        await this.updateFileTagIfNeeded(filePath, config.target.dir, config.target.metaDataDir || config.target.dir, config.verification.mode);
+      } catch (error) {
+        logger.log(`(tagging-service)> Error while updating file: ${filePath}`);
+        errorService.handleErrorDuringIteration(error);
+      }
     }
 
     logger.log(`(tagging-service)> Tagged ${fileToTagList.length} files`);
   }
 
-  async tagNewOnly(config: Config): Promise<void> {
+  public async tagNewOnly(config: Config): Promise<void> {
     logger.log("(core-service)> Tagging new files");
 
     const fileToTagList: string[] = [];
     discoveryService.populateFilesToTag(config.target.dir, config.target.dir, config.target.metaDataDir || config.target.dir, fileToTagList, []);
 
     for (const filePath of fileToTagList) {
-      await this.tagFile(filePath, config.target.dir, config.target.metaDataDir || config.target.dir);
+      try {
+        await this.tagFile(filePath, config.target.dir, config.target.metaDataDir || config.target.dir);
+      } catch (error) {
+        logger.log(`(tagging-service)> Error while tagging file: ${filePath}`);
+        errorService.handleErrorDuringIteration(error);
+      }
     }
 
     logger.log(`(tagging-service)> Tagged ${fileToTagList.length} files`);
@@ -121,21 +137,26 @@ class TaggingService {
   private untagFiles(dir: string, counter: { count: number; }): void {
     const childList = fs.readdirSync(dir);
     for (const child of childList) {
-      const childPath = path.join(dir, child);
-      const childStat = fs.statSync(childPath);
-      if (childStat.isDirectory()) {
-        this.untagFiles(childPath, counter);
-        continue;
-      }
-      if (childStat.isFile() && child.startsWith(constants.META_FILE_PREFIX)) {
-        logger.log(`(tagging-service)> Untagging file: ${childPath}`);
-        fs.unlinkSync(childPath);
-        counter.count++;
+      try {
+        const childPath = path.join(dir, child);
+        const childStat = fs.statSync(childPath);
+        if (childStat.isDirectory()) {
+          this.untagFiles(childPath, counter);
+          continue;
+        }
+        if (childStat.isFile() && child.startsWith(constants.META_FILE_PREFIX)) {
+          logger.log(`(tagging-service)> Untagging file: ${childPath}`);
+          fs.unlinkSync(childPath);
+          counter.count++;
+        }
+      } catch (error) {
+        logger.log(`(tagging-service)> Error while untagging file: ${child}`);
+        errorService.handleErrorDuringIteration(error);
       }
     }
   }
 
-  untag(config: Config): void {
+  public untag(config: Config): void {
     logger.log("(tagging-service)> Untagging files");
 
     const counter = { count: 0 };

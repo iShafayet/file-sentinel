@@ -5,6 +5,7 @@ import { FileMetaData, fileMetaDataSchema } from "../model/file-meta-data.js";
 import { getMetaFilePath, getRecoveryFilePath } from "../utility/meta-data-utils.js";
 import { integrityService } from "./integrity-service.js";
 import fs from "fs";
+import { errorService } from "./error-service.js";
 
 class RecoveryService {
 
@@ -86,9 +87,14 @@ class RecoveryService {
 
     let recoveredCount = 0;
     for (const filePath of listMap.failed) {
-      const wasRecovered = await this.recoverFile(filePath, config);
-      if (wasRecovered) {
-        recoveredCount++;
+      try {
+        const wasRecovered = await this.recoverFile(filePath, config);
+        if (wasRecovered) {
+          recoveredCount++;
+        }
+      } catch (error) {
+        logger.log(`(recovery-service)> Error while recovering file: ${filePath}`);
+        errorService.handleErrorDuringIteration(error);
       }
     }
 
