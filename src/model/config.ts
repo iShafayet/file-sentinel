@@ -1,6 +1,11 @@
 import Joi from "joi";
 
-export type Operation = "untag" | "tag-new-only" | "tag-new-and-update" | "verify-integrity" | "verify-and-recover";
+export type Operation = "untag"
+  | "tag-new-only"
+  | "tag-new-and-update"
+  | "prune"
+  | "verify-integrity"
+  | "verify-and-recover";
 
 export type VerificationMode = "size" | "size-and-hash";
 

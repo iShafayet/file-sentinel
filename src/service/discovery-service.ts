@@ -29,6 +29,21 @@ class DiscoveryService {
       }
     }
   }
+
+  public populateMetadataFiles(dir: string, rootDir: string, metaDataRootDir: string, metadataFileList: string[]): void {
+    const childList = fs.readdirSync(dir);
+    for (const child of childList) {
+      const childPath = path.join(dir, child);
+      const childStat = fs.statSync(childPath);
+      if (childStat.isDirectory()) {
+        this.populateMetadataFiles(childPath, rootDir, metaDataRootDir, metadataFileList);
+        continue;
+      }
+      if (child.startsWith(constants.META_FILE_PREFIX)) {
+        metadataFileList.push(childPath);
+      }
+    }
+  }
 }
 
 export const discoveryService = new DiscoveryService();

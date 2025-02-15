@@ -3,8 +3,8 @@ import { Config } from "../model/config.js";
 import { taggingService } from "./tagging-service.js";
 import { integrityService } from "./integrity-service.js";
 import { recoveryService } from "./recovery-service.js";
-class CoreService {
 
+class CoreService {
   async handle(config: Config): Promise<void> {
     if (config.operation === "untag") {
       await taggingService.untag(config);
@@ -12,6 +12,8 @@ class CoreService {
       await taggingService.tagNewOnly(config);
     } else if (config.operation === "tag-new-and-update") {
       await taggingService.tagNewAndUpdateExisting(config);
+    } else if (config.operation === "prune") {
+      await integrityService.prune(config);
     } else if (config.operation === "verify-integrity") {
       await integrityService.verifyIntegrity(config);
     } else if (config.operation === "verify-and-recover") {

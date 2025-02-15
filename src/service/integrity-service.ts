@@ -2,7 +2,7 @@ import { Config, VerificationMode } from "../model/config.js";
 import { logger } from "../lib/logger.js";
 import { discoveryService } from "./discovery-service.js";
 import { fileMetaDataSchema } from "../model/file-meta-data.js";
-import { getMetaFilePath } from "../utility/meta-data-utils.js";
+import { getDataFilePath, getMetaFilePath } from "../utility/meta-data-utils.js";
 import { FileMetaData } from "../model/file-meta-data.js";
 import fs from "fs";
 import { cryptoService } from "./crypto-service.js";
@@ -103,6 +103,20 @@ class IntegrityService {
     );
 
     return listMap;
+  }
+
+  public async prune(config: Config): Promise<void> {
+    logger.log("(integrity-service)> Pruning");
+    const metadataFileList: string[] = [];
+    discoveryService.populateMetadataFiles(config.target.metaDataDir || config.target.dir, config.target.dir, config.target.metaDataDir || config.target.dir, metadataFileList);
+
+    for (const metaDataFilePath of metadataFileList) {
+      const dataFilePath = getDataFilePath(metaDataFilePath, config.target.dir, config.target.metaDataDir || config.target.dir);
+      if (!fs.existsSync(dataFilePath)) {
+        logger.log(`(integrity-service)> File ${dataFilePath} does not exist. Removing meta data file ${metaDataFilePath}`);
+        fs.unlinkSync(metaDataFilePath);
+      }
+    }
   }
 }
 
