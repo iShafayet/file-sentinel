@@ -6,6 +6,7 @@ import { getDataFilePath, getMetaFilePath } from "../utility/meta-data-utils.js"
 import { FileMetaData } from "../model/file-meta-data.js";
 import fs from "fs";
 import { cryptoService } from "./crypto-service.js";
+import { errorService } from "./error-service.js";
 
 export interface ListMap {
   skipped: string[];
@@ -91,7 +92,12 @@ class IntegrityService {
     }
 
     for (const filePath of previouslyTaggedFileList) {
-      await this.verifyFile(filePath, config.target.dir, config.target.metaDataDir || config.target.dir, config.verification.mode, listMap);
+      try {
+        await this.verifyFile(filePath, config.target.dir, config.target.metaDataDir || config.target.dir, config.verification.mode, listMap);
+      } catch (error) {
+        logger.log(`(integrity-service)> Error while verifying file: ${filePath}`);
+        errorService.handleErrorDuringIteration(error);
+      }
     }
 
     logger.log(
@@ -111,10 +117,15 @@ class IntegrityService {
     discoveryService.populateMetadataFiles(config.target.metaDataDir || config.target.dir, config.target.dir, config.target.metaDataDir || config.target.dir, metadataFileList);
 
     for (const metaDataFilePath of metadataFileList) {
-      const dataFilePath = getDataFilePath(metaDataFilePath, config.target.dir, config.target.metaDataDir || config.target.dir);
-      if (!fs.existsSync(dataFilePath)) {
-        logger.log(`(integrity-service)> File ${dataFilePath} does not exist. Removing meta data file ${metaDataFilePath}`);
-        fs.unlinkSync(metaDataFilePath);
+      try {
+        const dataFilePath = getDataFilePath(metaDataFilePath, config.target.dir, config.target.metaDataDir || config.target.dir);
+        if (!fs.existsSync(dataFilePath)) {
+          logger.log(`(integrity-service)> File ${dataFilePath} does not exist. Removing meta data file ${metaDataFilePath}`);
+          fs.unlinkSync(metaDataFilePath);
+        }
+      } catch (error) {
+        logger.log(`(integrity-service)> Error while pruning meta data file: ${metaDataFilePath}`);
+        errorService.handleErrorDuringIteration(error);
       }
     }
   }
