@@ -26,10 +26,11 @@ export type Config = {
     mirrorModificationTakesPrecedence: boolean;
     verifyAfterRecovery: boolean;
   } | null;
+  panicOnError: boolean;
 };
 
 export const ConfigSchema = Joi.object({
-  operation: Joi.string().valid("untag", "tag-new-only", "tag-new-and-update", "verify-integrity", "verify-and-recover").required(),
+  operation: Joi.string().valid("untag", "tag-new-only", "tag-new-and-update", "prune", "verify-integrity", "verify-and-recover").required(),
   target: Joi.object({
     dir: Joi.string().required(),
     metaDataDir: Joi.string().allow(null).required(),
@@ -45,4 +46,5 @@ export const ConfigSchema = Joi.object({
     mirrorModificationTakesPrecedence: Joi.boolean().required(),
     verifyAfterRecovery: Joi.boolean().required(),
   }).allow(null).required(),
+  panicOnError: Joi.boolean().required(),
 });
