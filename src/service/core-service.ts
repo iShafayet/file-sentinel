@@ -20,18 +20,6 @@ class CoreService {
       await recoveryService.checkIntegrityAndRecover(config);
     }
   }
-
-  private tagNewAndUpdate(config: Config): void {
-    logger.log("(core-service)> Tagging new files and updating existing files");
-  }
-
-  private verifyIntegrity(config: Config): void {
-    logger.log("(core-service)> Verifying integrity");
-  }
-
-  private verifyAndRecover(config: Config): void {
-    logger.log("(core-service)> Verifying and recovering");
-  }
 }
 
 export const coreService = new CoreService();
