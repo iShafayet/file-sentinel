@@ -1,8 +1,5 @@
 import { FileSentinelProgram } from "../src/index.js";
-
-declare global {
-  var fileSentinelList: FileSentinelProgram[];
-}
+import { } from "./test-types.js";
 
 const teardown = async () => {
   console.log("TESTSUITE TEARDOWN");
