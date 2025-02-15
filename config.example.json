@@ -14,5 +14,6 @@
     "mirrorMetaDataDir": "/optional/path/to/mirror/metadata/directory",
     "mirrorModificationTakesPrecedence": true,
     "verifyAfterRecovery": true
-  }
+  },
+  "panicOnError": false
 }
