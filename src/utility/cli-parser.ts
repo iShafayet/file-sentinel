@@ -14,7 +14,8 @@ export const parseCommandLineArgs = (): Config | null => {
     .option('--mirror-dir <path>', 'Mirror directory path for recovery')
     .option('--mirror-metadata-dir <path>', 'Mirror metadata directory path for recovery')
     .option('--mirror-precedence <bool>', 'Mirror modification takes precedence', 'false')
-    .option('--verify-after-recovery <bool>', 'Verify after recovery', 'true');
+    .option('--verify-after-recovery <bool>', 'Verify after recovery', 'true')
+    .option('--panic-on-error <bool>', 'Panic on error', 'false');
 
   program.parse();
   const options = program.opts();

@@ -3,9 +3,12 @@ import { Config } from "../model/config.js";
 import { taggingService } from "./tagging-service.js";
 import { integrityService } from "./integrity-service.js";
 import { recoveryService } from "./recovery-service.js";
+import { errorService } from "./error-service.js";
 
 class CoreService {
   async handle(config: Config): Promise<void> {
+    errorService.setConfig(config);
+
     if (config.operation === "untag") {
       await taggingService.untag(config);
     } else if (config.operation === "tag-new-only") {
