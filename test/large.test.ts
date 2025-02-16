@@ -155,7 +155,7 @@ describe("Large file: SET 2", (): void => {
     expect(executionResult.success).toBe(true);
     expect(executionResult.errorCount).toBe(0);
     expect(executionResult.recoveredCount).toBe(1);
-  });
+  }, 5 * 60 * 1000);
 
 
   // eof

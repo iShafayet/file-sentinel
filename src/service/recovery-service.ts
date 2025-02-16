@@ -7,6 +7,8 @@ import { integrityService } from "./integrity-service.js";
 import fs from "fs";
 import { errorService } from "./error-service.js";
 import { ExecutionResult } from "../model/execution-results.js";
+import { fileService } from "./file-service.js";
+import constants from "../constant/common-constants.js";
 
 class RecoveryService {
 
@@ -59,7 +61,14 @@ class RecoveryService {
     fs.unlinkSync(fullFilePath);
 
     // Copy recovery file to local file
-    fs.copyFileSync(fullRecoveryFilePath, fullFilePath);
+    const stat = fs.statSync(fullRecoveryFilePath);
+    if (stat.size > constants.SYNC_HASHFILE_SIZE_THRESHOLD_BYTES) {
+      await fileService.copyLargeFile(fullRecoveryFilePath, fullFilePath, (bytesRead: number) => {
+        logger.log(`(recovery-service)> Recovering ${filePath}. Progress: ${Math.floor(bytesRead / 1_000_000)}MB/${Math.floor(stat.size / 1_000_000)}MB`);
+      });
+    } else {
+      fs.copyFileSync(fullRecoveryFilePath, fullFilePath);
+    }
     fs.utimesSync(fullFilePath, new Date(recoveryMetaData.file.modifiedAt), new Date(recoveryMetaData.file.modifiedAt));
 
     // Update local meta data

@@ -58,7 +58,9 @@ class IntegrityService {
     }
 
     if (verificationMode === "size-and-hash") {
-      const hash = await cryptoService.generateSha256HashFromFile(filePath, fileStat.size);
+      const hash = await cryptoService.generateSha256HashFromFile(filePath, fileStat.size, (bytesRead: number) => {
+        logger.log(`(integrity-service)> Processing ${relativeFilePath}. Progress: ${Math.floor(bytesRead / 1_000_000)}MB/${Math.floor(fileStat.size / 1_000_000)}MB`);
+      });
       if (existingMeta.hash.sha256 !== hash) {
         logger.log(`(integrity-service)> File ${relativeFilePath} has been corrupted (hash from meta: ${existingMeta.hash.sha256}, hash from file: ${hash}) (changed without updating modifiedAt). Failed verification.`);
         listMap.failed.push(relativeFilePath);
