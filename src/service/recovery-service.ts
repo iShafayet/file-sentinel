@@ -11,14 +11,14 @@ import { ExecutionResult } from "../model/execution-results.js";
 class RecoveryService {
 
   private async recoverFile(filePath: string, config: Config): Promise<boolean> {
-    logger.log(`(recovery-service)> Recovering file: ${filePath}`);
+    logger.log(`(recovery-service)> Attempting to recover file: ${filePath}`);
 
     // We need to at least be able to check local meta data
     const localMetaFilePath = getMetaFilePath(filePath, config.target.dir, config.target.metaDataDir || config.target.dir);
     const localMetaData: FileMetaData = JSON.parse(fs.readFileSync(localMetaFilePath, "utf-8"));
     const { error } = fileMetaDataSchema.validate(localMetaData);
     if (error) {
-      logger.log(`(recovery-service)> Local meta data file has invalid meta data: ${localMetaFilePath}`);
+      logger.logNegative(`(recovery-service)> Local meta data file has invalid meta data: ${localMetaFilePath}`);
       return false;
     }
 
@@ -26,12 +26,12 @@ class RecoveryService {
     const recoveryMetaFilePath = getMetaFilePath(recoveryFilePath, config.recovery!.mirrorDir, config.recovery!.mirrorMetaDataDir || config.recovery!.mirrorDir);
 
     if (!fs.existsSync(recoveryFilePath)) {
-      logger.log(`(recovery-service)> Recovery file does not exist: ${recoveryFilePath}`);
+      logger.logNegative(`(recovery-service)> Recovery file does not exist: ${recoveryFilePath}`);
       return false;
     }
 
     if (!fs.existsSync(recoveryMetaFilePath)) {
-      logger.log(`(recovery-service)> Recovery meta data file does not exist: ${recoveryMetaFilePath}`);
+      logger.logNegative(`(recovery-service)> Recovery meta data file does not exist: ${recoveryMetaFilePath}`);
       return false;
     }
 
@@ -39,7 +39,7 @@ class RecoveryService {
     const recoveryMetaData: FileMetaData = JSON.parse(fs.readFileSync(recoveryMetaFilePath, "utf-8"));
     const { error: recoveryError } = fileMetaDataSchema.validate(recoveryMetaData);
     if (recoveryError) {
-      logger.log(`(recovery-service)> Recovery meta data file has invalid meta data: ${recoveryMetaFilePath}`);
+      logger.logNegative(`(recovery-service)> Recovery meta data file has invalid meta data: ${recoveryMetaFilePath}`);
       return false;
     }
 
@@ -70,7 +70,7 @@ class RecoveryService {
     return true;
   }
 
-  async checkIntegrityAndRecover(config: Config): Promise<ExecutionResult> {
+  public async checkIntegrityAndRecover(config: Config): Promise<ExecutionResult> {
     if (!config.recovery) {
       logger.log("(recovery-service)> No recovery configuration found. Skipping recovery.");
       return {
@@ -100,7 +100,7 @@ class RecoveryService {
           executionResult.recoveredCount!++;
         }
       } catch (error) {
-        logger.log(`(recovery-service)> Error while recovering file: ${filePath}`);
+        logger.logNegative(`(recovery-service)> Error while recovering file: ${filePath}`);
         errorService.handleErrorDuringIteration(error);
         executionResult.errorCount!++;
       }

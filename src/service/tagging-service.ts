@@ -13,7 +13,7 @@ class TaggingService {
 
   private async tagFile(filePath: string, rootDir: string, metaDataRootDir: string): Promise<void> {
     const relativeFilePath = filePath.replace(rootDir, "");
-    logger.log(`(tagging-service)> Tagging file: ${relativeFilePath}`);
+    logger.debug(`(tagging-service)> Tagging file: ${relativeFilePath}`);
     const metaDataPath = getMetaFilePath(filePath, rootDir, metaDataRootDir);
     const fileStat = fs.statSync(filePath);
     const hash = await cryptoService.generateSha256HashFromFile(filePath, fileStat.size);
@@ -43,13 +43,13 @@ class TaggingService {
 
   private async updateFileTagIfNeeded(filePath: string, rootDir: string, metaDataRootDir: string, verificationMode: VerificationMode): Promise<boolean> {
     const relativeFilePath = filePath.replace(rootDir, "");
-    logger.log(`(tagging-service)> Potentially updating file: ${relativeFilePath}`);
+    logger.debug(`(tagging-service)> Potentially updating file: ${relativeFilePath}`);
     const metaDataPath = getMetaFilePath(filePath, rootDir, metaDataRootDir);
 
     const existingMeta: FileMetaData = JSON.parse(fs.readFileSync(metaDataPath, "utf-8"));
     const { error } = fileMetaDataSchema.validate(existingMeta);
     if (error) {
-      logger.log(`(tagging-service)> File ${relativeFilePath} has invalid meta data. It will be re-tagged.`);
+      logger.debug(`(tagging-service)> File ${relativeFilePath} has invalid meta data. It will be re-tagged.`);
       await this.tagFile(filePath, rootDir, metaDataRootDir);
       return true;
     }
@@ -57,18 +57,18 @@ class TaggingService {
     const fileStat = fs.statSync(filePath);
 
     if (existingMeta.file.modifiedAt !== fileStat.mtime.getTime()) {
-      logger.log(`(tagging-service)> File ${relativeFilePath} has been modified (modifiedAt from meta: ${existingMeta.file.modifiedAt}, modifiedAt from file: ${fileStat.mtime.getTime()}). It will be re-tagged.`);
+      logger.debug(`(tagging-service)> File ${relativeFilePath} has been modified (modifiedAt from meta: ${existingMeta.file.modifiedAt}, modifiedAt from file: ${fileStat.mtime.getTime()}). It will be re-tagged.`);
       await this.tagFile(filePath, rootDir, metaDataRootDir);
       return true;
     }
 
     if (verificationMode === "size") {
       if (existingMeta.file.size !== fileStat.size) {
-        logger.log(`(tagging-service)> File ${relativeFilePath} has been modified (size from meta: ${existingMeta.file.size}, size from file: ${fileStat.size}). It will be re-tagged.`);
+        logger.debug(`(tagging-service)> File ${relativeFilePath} has been modified (size from meta: ${existingMeta.file.size}, size from file: ${fileStat.size}). It will be re-tagged.`);
         await this.tagFile(filePath, rootDir, metaDataRootDir);
         return true;
       } else {
-        logger.log(`(tagging-service)> File ${relativeFilePath} is unchanged (size check passed)`);
+        logger.debug(`(tagging-service)> File ${relativeFilePath} is unchanged (size check passed)`);
         return false;
       }
     }
@@ -76,11 +76,11 @@ class TaggingService {
     if (verificationMode === "size-and-hash") {
       const hash = await cryptoService.generateSha256HashFromFile(filePath, fileStat.size);
       if (existingMeta.hash.sha256 !== hash) {
-        logger.log(`(tagging-service)> File ${relativeFilePath} has been modified (hash from meta: ${existingMeta.hash.sha256}, hash from file: ${hash}). It will be re-tagged.`);
+        logger.debug(`(tagging-service)> File ${relativeFilePath} has been modified (hash from meta: ${existingMeta.hash.sha256}, hash from file: ${hash}). It will be re-tagged.`);
         await this.tagFile(filePath, rootDir, metaDataRootDir);
         return true;
       } else {
-        logger.log(`(tagging-service)> File ${relativeFilePath} is unchanged (hash check passed)`);
+        logger.debug(`(tagging-service)> File ${relativeFilePath} is unchanged (hash check passed)`);
         return false;
       }
     }
@@ -108,7 +108,7 @@ class TaggingService {
         await this.tagFile(filePath, config.target.dir, config.target.metaDataDir || config.target.dir);
         executionResult.tagAddedCount!++;
       } catch (error) {
-        logger.log(`(tagging-service)> Error while tagging file: ${filePath}`);
+        logger.logNegative(`(tagging-service)> Error while tagging file: ${filePath}`);
         errorService.handleErrorDuringIteration(error);
         executionResult.errorCount!++;
       }
@@ -121,7 +121,7 @@ class TaggingService {
           executionResult.tagUpdatedCount!++;
         }
       } catch (error) {
-        logger.log(`(tagging-service)> Error while updating file: ${filePath}`);
+        logger.logNegative(`(tagging-service)> Error while updating file: ${filePath}`);
         errorService.handleErrorDuringIteration(error);
         executionResult.errorCount!++;
       }
@@ -147,10 +147,10 @@ class TaggingService {
     for (const filePath of fileToTagList) {
       try {
         await this.tagFile(filePath, config.target.dir, config.target.metaDataDir || config.target.dir);
-        console.log(`(tagging-service)> Tagged file: ${filePath}`, executionResult.tagAddedCount);
+        logger.debug(`(tagging-service)> Tagged file: ${filePath}`, executionResult.tagAddedCount);
         executionResult.tagAddedCount!++;
       } catch (error) {
-        logger.log(`(tagging-service)> Error while tagging file: ${filePath}`);
+        logger.logNegative(`(tagging-service)> Error while tagging file: ${filePath}`);
         errorService.handleErrorDuringIteration(error);
         executionResult.errorCount!++;
       }
@@ -171,12 +171,12 @@ class TaggingService {
           continue;
         }
         if (childStat.isFile() && child.startsWith(constants.META_FILE_PREFIX)) {
-          logger.log(`(tagging-service)> Untagging file: ${childPath}`);
+          logger.debug(`(tagging-service)> Untagging file: ${childPath}`);
           fs.unlinkSync(childPath);
           executionResult.tagRemovedCount!++;
         }
       } catch (error) {
-        logger.log(`(tagging-service)> Error while untagging file: ${child}`);
+        logger.logNegative(`(tagging-service)> Error while untagging file: ${child}`);
         errorService.handleErrorDuringIteration(error);
       }
     }

@@ -24,7 +24,7 @@ class ErrorService {
     logger.error(actualError);
 
     if (this.config.panicOnError) {
-      logger.log("(error-service)> Panicking due to error");
+      logger.logNegative("(error-service)> Panicking due to error");
       process.exit(1);
     }
   }

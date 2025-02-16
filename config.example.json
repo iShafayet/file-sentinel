@@ -15,5 +15,6 @@
     "mirrorModificationTakesPrecedence": true,
     "verifyAfterRecovery": true
   },
-  "panicOnError": false
+  "panicOnError": false,
+  "verbose": false
 }

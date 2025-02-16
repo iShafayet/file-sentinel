@@ -30,7 +30,8 @@ node dist/start.js \
   --mirror-metadata-dir "/example/mirror-meta" \
   --mirror-precedence true \
   --verify-after-recovery true \
-  --panic-on-error true
+  --panic-on-error true \
+  --verbose true
 ```
 
 Or, if you installed the cli tool, you can run:
@@ -46,7 +47,8 @@ file-sentinel \
   --mirror-metadata-dir "/example/mirror-meta" \
   --mirror-precedence true \
   --verify-after-recovery true \
-  --panic-on-error true
+  --panic-on-error true \
+  --verbose true
 ```
 
 ## Author and License
