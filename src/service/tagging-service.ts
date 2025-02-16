@@ -17,7 +17,9 @@ class TaggingService {
     const metaDataPath = getMetaFilePath(filePath, rootDir, metaDataRootDir);
     const fileStat = fs.statSync(filePath);
     const hash = await cryptoService.generateSha256HashFromFile(filePath, fileStat.size, (bytesRead: number) => {
-      logger.log(`(tagging-service)> Processing ${relativeFilePath}. Progress: ${Math.floor(bytesRead / 1_000_000)}MB/${Math.floor(fileStat.size / 1_000_000)}MB`);
+      const progressString = `${Math.floor(bytesRead / 1_000_000) / 1000}GB/${Math.floor(fileStat.size / 1_000_000) / 1000}GB`;
+      const percentage = Math.floor((bytesRead / fileStat.size) * 10000) / 100;
+      logger.log(`(tagging-service)> Processing ${relativeFilePath}. Progress: ${progressString} (${percentage}%)`);
     });
     const metaData: FileMetaData = {
       file: {
@@ -77,7 +79,9 @@ class TaggingService {
 
     if (verificationMode === "size-and-hash") {
       const hash = await cryptoService.generateSha256HashFromFile(filePath, fileStat.size, (bytesRead: number) => {
-        logger.log(`(tagging-service)> Processing ${relativeFilePath}. Progress: ${Math.floor(bytesRead / 1_000_000)}MB/${Math.floor(fileStat.size / 1_000_000)}MB`);
+        const progressString = `${Math.floor(bytesRead / 1_000_000) / 1000}GB/${Math.floor(fileStat.size / 1_000_000) / 1000}GB`;
+        const percentage = Math.floor((bytesRead / fileStat.size) * 10000) / 100;
+        logger.log(`(tagging-service)> Processing ${relativeFilePath}. Progress: ${progressString} (${percentage}%)`);
       });
       if (existingMeta.hash.sha256 !== hash) {
         logger.debug(`(tagging-service)> File ${relativeFilePath} has been modified (hash from meta: ${existingMeta.hash.sha256}, hash from file: ${hash}). It will be re-tagged.`);

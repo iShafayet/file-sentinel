@@ -8,12 +8,12 @@
   "type": "module",
   "main": "src/start.ts",
   "bin": {
-    "file-sentinel": "dist/start.js"
+    "file-sentinel": "dist/src/start.js"
   },
   "scripts": {
     "build": "npx tsc && node scripts/post-build.js",
     "lint": "eslint .",
-    "start": "node dist/start.js",
+    "start": "node dist/src/start.js",
     "start-compiled": "npm run build && npm start",
     "test": "npm run build && node --experimental-vm-modules node_modules/jest/bin/jest.js",
     "install-cli": "npm run build && npm install -g ."
