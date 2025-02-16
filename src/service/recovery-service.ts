@@ -64,7 +64,9 @@ class RecoveryService {
     const stat = fs.statSync(fullRecoveryFilePath);
     if (stat.size > constants.SYNC_HASHFILE_SIZE_THRESHOLD_BYTES) {
       await fileService.copyLargeFile(fullRecoveryFilePath, fullFilePath, (bytesRead: number) => {
-        logger.log(`(recovery-service)> Recovering ${filePath}. Progress: ${Math.floor(bytesRead / 1_000_000)}MB/${Math.floor(stat.size / 1_000_000)}MB`);
+        const progressString = `${Math.floor(bytesRead / 1_000_000) / 1000}GB/${Math.floor(stat.size / 1_000_000) / 1000}GB`;
+        const percentage = Math.floor((bytesRead / stat.size) * 10000) / 100;
+        logger.log(`(recovery-service)> Recovering ${filePath}. Progress: ${progressString} (${percentage}%)`);
       });
     } else {
       fs.copyFileSync(fullRecoveryFilePath, fullFilePath);

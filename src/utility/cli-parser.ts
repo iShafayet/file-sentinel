@@ -16,7 +16,8 @@ export const parseCommandLineArgs = (): Config | null => {
     .option('--mirror-metadata-dir <path>', 'Mirror metadata directory path for recovery')
     .option('--mirror-precedence <bool>', 'Mirror modification takes precedence', 'false')
     .option('--verify-after-recovery <bool>', 'Verify after recovery', 'true')
-    .option('--panic-on-error <bool>', 'Panic on error', 'false');
+    .option('--panic-on-error <bool>', 'Panic on error', 'false')
+    .option('--verbose <bool>', 'Verbose output', 'false');
 
   program.parse();
   const options = program.opts();
@@ -61,6 +62,10 @@ export const parseCommandLineArgs = (): Config | null => {
 
   if (options.panicOnError) {
     config.panicOnError = options.panicOnError === 'true';
+  }
+
+  if (options.verbose) {
+    config.verbose = options.verbose === 'true';
   }
 
   // If we have all required config from CLI, validate and return it
