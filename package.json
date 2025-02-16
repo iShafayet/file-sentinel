@@ -11,10 +11,10 @@
     "file-sentinel": "dist/start.js"
   },
   "scripts": {
-    "build": "npx tsc",
+    "build": "npx tsc && node scripts/post-build.js",
     "lint": "eslint .",
-    "start-compiled": "npx tsc && node dist/start.js",
     "start": "node dist/start.js",
+    "start-compiled": "npm run build && npm start",
     "test": "npm run build && node --experimental-vm-modules node_modules/jest/bin/jest.js",
     "install-cli": "npm run build && npm install -g ."
   },
@@ -22,6 +22,7 @@
     "@seald-io/nedb": "^3.0.0",
     "check-disk-space": "^3.3.1",
     "commander": "^13.1.0",
+    "dotenv": "^16.4.7",
     "joi": "^17.6.0"
   },
   "engines": {
