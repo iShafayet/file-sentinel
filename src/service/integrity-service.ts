@@ -7,6 +7,7 @@ import { FileMetaData } from "../model/file-meta-data.js";
 import fs from "fs";
 import { cryptoService } from "./crypto-service.js";
 import { errorService } from "./error-service.js";
+import { ExecutionResult } from "../model/execution-results.js";
 
 export interface ListMap {
   skipped: string[];
@@ -66,8 +67,16 @@ class IntegrityService {
     throw new Error("Code should not reach here");
   }
 
-  public async verifyIntegrity(config: Config): Promise<ListMap> {
+  public async verifyIntegrity(config: Config): Promise<[ListMap, ExecutionResult]> {
     logger.log("(integrity-service)> Verifying integrity");
+
+    const executionResult: ExecutionResult = {
+      operation: "verify-integrity",
+      success: true,
+      errorCount: 0,
+      tagAddedCount: 0,
+      tagUpdatedCount: 0,
+    };
 
     const listMap: ListMap = {
       passed: [],
@@ -78,7 +87,7 @@ class IntegrityService {
 
     const untaggedFileList: string[] = [];
     const previouslyTaggedFileList: string[] = [];
-    discoveryService.populateFilesToTag(config.target.dir, config.target.dir, config.target.metaDataDir || config.target.dir, untaggedFileList, previouslyTaggedFileList);
+    discoveryService.populateFilesToTag(config.target.dir, config.target.dir, config.target.metaDataDir || config.target.dir, untaggedFileList, previouslyTaggedFileList, executionResult);
 
     if (untaggedFileList.length > 0) {
       logger.log(`(integrity-service)> Found ${untaggedFileList.length} untagged files. These will not be able to be verified. It is recommended to tag those.`);
@@ -88,7 +97,7 @@ class IntegrityService {
       logger.log(`(integrity-service)> Found ${previouslyTaggedFileList.length} previously tagged files. These will be verified.`);
     } else {
       logger.log(`(integrity-service)> No previously tagged files found. Nothing to verify.`);
-      return listMap;
+      return [listMap, executionResult];
     }
 
     for (const filePath of previouslyTaggedFileList) {
@@ -97,6 +106,7 @@ class IntegrityService {
       } catch (error) {
         logger.log(`(integrity-service)> Error while verifying file: ${filePath}`);
         errorService.handleErrorDuringIteration(error);
+        executionResult.errorCount!++;
       }
     }
 
@@ -108,11 +118,24 @@ class IntegrityService {
       `    • ${listMap.error.length} files generated errors`
     );
 
-    return listMap;
+    executionResult.verificationPassedCount = listMap.passed.length;
+    executionResult.verificationFailedCount = listMap.failed.length;
+    executionResult.verificationSkippedCount = listMap.skipped.length;
+    executionResult.errorCount += listMap.error.length;
+
+    return [listMap, executionResult];
   }
 
-  public async prune(config: Config): Promise<void> {
+  public async prune(config: Config): Promise<ExecutionResult> {
     logger.log("(integrity-service)> Pruning");
+
+    const executionResult: ExecutionResult = {
+      operation: "prune",
+      success: true,
+      errorCount: 0,
+      prunedCount: 0,
+    };
+
     const metadataFileList: string[] = [];
     discoveryService.populateMetadataFiles(config.target.metaDataDir || config.target.dir, config.target.dir, config.target.metaDataDir || config.target.dir, metadataFileList);
 
@@ -122,12 +145,17 @@ class IntegrityService {
         if (!fs.existsSync(dataFilePath)) {
           logger.log(`(integrity-service)> File ${dataFilePath} does not exist. Removing meta data file ${metaDataFilePath}`);
           fs.unlinkSync(metaDataFilePath);
+          executionResult.prunedCount!++;
         }
       } catch (error) {
         logger.log(`(integrity-service)> Error while pruning meta data file: ${metaDataFilePath}`);
         errorService.handleErrorDuringIteration(error);
+        executionResult.errorCount!++;
       }
     }
+
+    logger.log(`(integrity-service)> Pruned ${executionResult.prunedCount} meta data files`);
+    return executionResult;
   }
 }
 

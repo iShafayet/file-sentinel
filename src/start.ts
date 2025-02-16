@@ -13,4 +13,4 @@ console.log("STARTUP Application parameters: ", commandLineParams);
 
 let config: Config = lookupAndLoadConfigAsync(commandLineParams);
 normalizePathsInConfig(config);
-new FileSentinelProgram().start(config);
+new FileSentinelProgram().execute(config);

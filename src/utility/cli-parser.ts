@@ -6,7 +6,7 @@ export const parseCommandLineArgs = (): Config | null => {
 
   program
     .option('--config <path>', 'Config file path')
-    .option('-o, --operation <type>', 'Operation type (untag|tag-new-only|tag-new-and-update|prune|verify-integrity|verify-and-recover)')
+    .option('-o, --operation <type>', 'Operation type (untag|tag-new-only|tag-new-and-update-existing|prune|verify-integrity|verify-and-recover)')
     .option('-d, --target-dir <path>', 'Target directory path')
     .option('-m, --target-metadata-dir <path>', 'Target metadata directory path')
     .option('--hash-recheck-threshold <milliseconds>', 'Hash recheck threshold in milliseconds', '3600000')
