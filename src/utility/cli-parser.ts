@@ -10,6 +10,7 @@ export const parseCommandLineArgs = (): Config | null => {
     .option('-d, --target-dir <path>', 'Target directory path')
     .option('-m, --target-metadata-dir <path>', 'Target metadata directory path')
     .option('--hash-recheck-threshold <milliseconds>', 'Hash recheck threshold in milliseconds', '3600000')
+    .option('--skip-transparently-modified <bool>', 'Skip transparently modified files', 'true')
     .option('--verification-mode <mode>', 'Verification mode (size|size-and-hash)', 'size-and-hash')
     .option('--mirror-dir <path>', 'Mirror directory path for recovery')
     .option('--mirror-metadata-dir <path>', 'Mirror metadata directory path for recovery')
@@ -33,8 +34,11 @@ export const parseCommandLineArgs = (): Config | null => {
     };
   }
 
-  if (options.hashRecheckThreshold) {
-    config.hashRecheckThresholdMillis = parseInt(options.hashRecheckThreshold);
+  if (options.hashRecheckThreshold || options.skipTransparentlyModified) {
+    config.integrity = {
+      hashRecheckThresholdMillis: parseInt(options.hashRecheckThreshold) || 0,
+      skipTransparentlyModified: options.skipTransparentlyModified === 'true'
+    };
   }
 
   if (options.verificationMode) {

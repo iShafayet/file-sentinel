@@ -24,6 +24,7 @@ node dist/start.js \
   --operation verify-and-recover \
   --target-dir "/example/target" \
   --target-metadata-dir "/example/target-meta" \
+  --skip-transparently-modified true \
   --hash-recheck-threshold 0 \
   --verification-mode size-and-hash \
   --mirror-dir "/example/mirror" \
@@ -41,6 +42,7 @@ file-sentinel \
   --operation verify-and-recover \
   --target-dir "/example/target" \
   --target-metadata-dir "/example/target-meta" \
+  --skip-transparently-modified true \
   --hash-recheck-threshold 0 \
   --verification-mode size-and-hash \
   --mirror-dir "/example/mirror" \

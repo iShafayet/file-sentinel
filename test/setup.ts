@@ -43,9 +43,10 @@ const setup = async () => {
   mkdirSync(join(global.testDataDir, "set1"), { recursive: true });
   mkdirSync(join(global.testDataDir, "set1-mirror1"), { recursive: true });
   mkdirSync(join(global.testDataDir, "set1-metadata"), { recursive: true });
+  mkdirSync(join(global.testDataDir, "set1-mirror1-metadata"), { recursive: true });
 
   createTestFiles("set1");
-  cpSync(join(global.testDataDir, "set1"), join(global.testDataDir, "set1-mirror1"), { recursive: true });
+  cpSync(join(global.testDataDir, "set1"), join(global.testDataDir, "set1-mirror1"), { recursive: true, preserveTimestamps: true });
 
   console.log("TESTSUITE SETUP DONE");
 };

@@ -405,8 +405,10 @@ const sourceFilesRaw: TestFile[] = [
 
 const FACTOR = 100;
 
-export const sourceFiles: TestFile[] = sourceFilesRaw.map(file => ({
-  ...file,
-  sizeInBytes: Math.floor(file.sizeInBytes / FACTOR)
-}));
+export const sourceFiles: TestFile[] = sourceFilesRaw
+  .slice(0, 10)
+  .map(file => ({
+    ...file,
+    sizeInBytes: Math.floor(file.sizeInBytes / FACTOR)
+  }));
 

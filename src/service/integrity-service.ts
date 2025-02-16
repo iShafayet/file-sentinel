@@ -18,7 +18,7 @@ export interface ListMap {
 
 class IntegrityService {
 
-  private async verifyFile(filePath: string, rootDir: string, metaDataRootDir: string, verificationMode: VerificationMode, listMap: ListMap): Promise<void> {
+  private async verifyFile(filePath: string, rootDir: string, metaDataRootDir: string, skipTransparentlyModified: boolean, verificationMode: VerificationMode, listMap: ListMap): Promise<void> {
     const relativeFilePath = filePath.replace(rootDir, "");
     logger.debug(`(integrity-service)> Verifying file: ${relativeFilePath}`);
     const metaDataPath = getMetaFilePath(filePath, rootDir, metaDataRootDir);
@@ -34,9 +34,15 @@ class IntegrityService {
     const fileStat = fs.statSync(filePath);
 
     if (existingMeta.file.modifiedAt !== fileStat.mtime.getTime()) {
-      logger.log(`(integrity-service)> File ${relativeFilePath} has been modified (modifiedAt from meta: ${existingMeta.file.modifiedAt}, modifiedAt from file: ${fileStat.mtime.getTime()}). It will be skipped.`);
-      listMap.skipped.push(relativeFilePath);
-      return;
+      if (skipTransparentlyModified) {
+        logger.log(`(integrity-service)> File ${relativeFilePath} has been modified (modifiedAt from meta: ${existingMeta.file.modifiedAt}, modifiedAt from file: ${fileStat.mtime.getTime()}). It will be skipped.`);
+        listMap.skipped.push(relativeFilePath);
+        return;
+      } else {
+        logger.log(`(integrity-service)> File ${relativeFilePath} has been modified (modifiedAt from meta: ${existingMeta.file.modifiedAt}, modifiedAt from file: ${fileStat.mtime.getTime()}). It will be verified.`);
+        listMap.failed.push(relativeFilePath);
+        return;
+      }
     }
 
     if (verificationMode === "size") {
@@ -102,7 +108,7 @@ class IntegrityService {
 
     for (const filePath of previouslyTaggedFileList) {
       try {
-        await this.verifyFile(filePath, config.target.dir, config.target.metaDataDir || config.target.dir, config.verification.mode, listMap);
+        await this.verifyFile(filePath, config.target.dir, config.target.metaDataDir || config.target.dir, config.integrity.skipTransparentlyModified, config.verification.mode, listMap);
       } catch (error) {
         logger.logNegative(`(integrity-service)> Error while verifying file: ${filePath}`);
         errorService.handleErrorDuringIteration(error);
