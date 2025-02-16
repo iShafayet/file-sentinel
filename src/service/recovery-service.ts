@@ -88,7 +88,9 @@ class RecoveryService {
         operation: "verify-and-recover",
         success: true,
         errorCount: 0,
+        totalCount: 0,
         recoveredCount: 0,
+        startedEpoch: Date.now(),
       };
     }
 

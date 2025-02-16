@@ -4,6 +4,10 @@ export type ExecutionResult = {
   operation: Operation;
   success: boolean;
   errorCount: number;
+  totalCount: number;
+
+  startedEpoch: number;
+  completedEpoch?: number;
 
   tagRemovedCount?: number;
   tagAddedCount?: number;

@@ -86,6 +86,8 @@ class IntegrityService {
       errorCount: 0,
       tagAddedCount: 0,
       tagUpdatedCount: 0,
+      totalCount: 0,
+      startedEpoch: Date.now(),
     };
 
     const listMap: ListMap = {
@@ -144,6 +146,8 @@ class IntegrityService {
       success: true,
       errorCount: 0,
       prunedCount: 0,
+      totalCount: 0,
+      startedEpoch: Date.now(),
     };
 
     const metadataFileList: string[] = [];

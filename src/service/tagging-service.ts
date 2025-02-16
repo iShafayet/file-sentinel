@@ -9,9 +9,11 @@ import { getMetaFilePath } from "../utility/meta-data-utils.js";
 import { discoveryService } from "./discovery-service.js";
 import { errorService } from "./error-service.js";
 import { ExecutionResult } from "../model/execution-results.js";
+import { uxService } from "./ux-service.js";
+
 class TaggingService {
 
-  private async tagFile(filePath: string, rootDir: string, metaDataRootDir: string): Promise<void> {
+  private async tagFile(filePath: string, rootDir: string, metaDataRootDir: string, executionResult: ExecutionResult): Promise<void> {
     const relativeFilePath = filePath.replace(rootDir, "");
     logger.debug(`(tagging-service)> Tagging file: ${relativeFilePath}`);
     const metaDataPath = getMetaFilePath(filePath, rootDir, metaDataRootDir);
@@ -20,6 +22,7 @@ class TaggingService {
       const progressString = `${Math.floor(bytesRead / 1_000_000) / 1000}GB/${Math.floor(fileStat.size / 1_000_000) / 1000}GB`;
       const percentage = Math.floor((bytesRead / fileStat.size) * 10000) / 100;
       logger.log(`(tagging-service)> Processing ${relativeFilePath}. Progress: ${progressString} (${percentage}%)`);
+      uxService.logProgress(executionResult);
     });
     const metaData: FileMetaData = {
       file: {
@@ -45,7 +48,7 @@ class TaggingService {
     fs.writeFileSync(metaDataPath, metaDataString);
   }
 
-  private async updateFileTagIfNeeded(filePath: string, rootDir: string, metaDataRootDir: string, verificationMode: VerificationMode): Promise<boolean> {
+  private async updateFileTagIfNeeded(filePath: string, rootDir: string, metaDataRootDir: string, verificationMode: VerificationMode, executionResult: ExecutionResult): Promise<boolean> {
     const relativeFilePath = filePath.replace(rootDir, "");
     logger.debug(`(tagging-service)> Potentially updating file: ${relativeFilePath}`);
     const metaDataPath = getMetaFilePath(filePath, rootDir, metaDataRootDir);
@@ -54,7 +57,7 @@ class TaggingService {
     const { error } = fileMetaDataSchema.validate(existingMeta);
     if (error) {
       logger.debug(`(tagging-service)> File ${relativeFilePath} has invalid meta data. It will be re-tagged.`);
-      await this.tagFile(filePath, rootDir, metaDataRootDir);
+      await this.tagFile(filePath, rootDir, metaDataRootDir, executionResult);
       return true;
     }
 
@@ -62,14 +65,14 @@ class TaggingService {
 
     if (existingMeta.file.modifiedAt !== fileStat.mtime.getTime()) {
       logger.debug(`(tagging-service)> File ${relativeFilePath} has been modified (modifiedAt from meta: ${existingMeta.file.modifiedAt}, modifiedAt from file: ${fileStat.mtime.getTime()}). It will be re-tagged.`);
-      await this.tagFile(filePath, rootDir, metaDataRootDir);
+      await this.tagFile(filePath, rootDir, metaDataRootDir, executionResult);
       return true;
     }
 
     if (verificationMode === "size") {
       if (existingMeta.file.size !== fileStat.size) {
         logger.debug(`(tagging-service)> File ${relativeFilePath} has been modified (size from meta: ${existingMeta.file.size}, size from file: ${fileStat.size}). It will be re-tagged.`);
-        await this.tagFile(filePath, rootDir, metaDataRootDir);
+        await this.tagFile(filePath, rootDir, metaDataRootDir, executionResult);
         return true;
       } else {
         logger.debug(`(tagging-service)> File ${relativeFilePath} is unchanged (size check passed)`);
@@ -82,10 +85,11 @@ class TaggingService {
         const progressString = `${Math.floor(bytesRead / 1_000_000) / 1000}GB/${Math.floor(fileStat.size / 1_000_000) / 1000}GB`;
         const percentage = Math.floor((bytesRead / fileStat.size) * 10000) / 100;
         logger.log(`(tagging-service)> Processing ${relativeFilePath}. Progress: ${progressString} (${percentage}%)`);
+        uxService.logProgress(executionResult);
       });
       if (existingMeta.hash.sha256 !== hash) {
         logger.debug(`(tagging-service)> File ${relativeFilePath} has been modified (hash from meta: ${existingMeta.hash.sha256}, hash from file: ${hash}). It will be re-tagged.`);
-        await this.tagFile(filePath, rootDir, metaDataRootDir);
+        await this.tagFile(filePath, rootDir, metaDataRootDir, executionResult);
         return true;
       } else {
         logger.debug(`(tagging-service)> File ${relativeFilePath} is unchanged (hash check passed)`);
@@ -102,9 +106,11 @@ class TaggingService {
     const executionResult: ExecutionResult = {
       operation: "tag-new-and-update-existing",
       success: true,
+      totalCount: 0,
       errorCount: 0,
       tagAddedCount: 0,
       tagUpdatedCount: 0,
+      startedEpoch: Date.now(),
     };
 
     const fileToTagList: string[] = [];
@@ -113,7 +119,7 @@ class TaggingService {
 
     for (const filePath of fileToTagList) {
       try {
-        await this.tagFile(filePath, config.target.dir, config.target.metaDataDir || config.target.dir);
+        await this.tagFile(filePath, config.target.dir, config.target.metaDataDir || config.target.dir, executionResult);
         executionResult.tagAddedCount!++;
       } catch (error) {
         logger.logNegative(`(tagging-service)> Error while tagging file: ${filePath}`);
@@ -124,7 +130,7 @@ class TaggingService {
 
     for (const filePath of fileToPotentialUpdateList) {
       try {
-        const wasUpdated = await this.updateFileTagIfNeeded(filePath, config.target.dir, config.target.metaDataDir || config.target.dir, config.verification.mode);
+        const wasUpdated = await this.updateFileTagIfNeeded(filePath, config.target.dir, config.target.metaDataDir || config.target.dir, config.verification.mode, executionResult);
         if (wasUpdated) {
           executionResult.tagUpdatedCount!++;
         }
@@ -145,8 +151,10 @@ class TaggingService {
     const executionResult: ExecutionResult = {
       operation: "tag-new-only",
       success: true,
+      totalCount: 0,
       errorCount: 0,
       tagAddedCount: 0,
+      startedEpoch: Date.now(),
     };
 
     const fileToTagList: string[] = [];
@@ -154,9 +162,10 @@ class TaggingService {
 
     for (const filePath of fileToTagList) {
       try {
-        await this.tagFile(filePath, config.target.dir, config.target.metaDataDir || config.target.dir);
+        await this.tagFile(filePath, config.target.dir, config.target.metaDataDir || config.target.dir, executionResult);
         logger.debug(`(tagging-service)> Tagged file: ${filePath}`, executionResult.tagAddedCount);
         executionResult.tagAddedCount!++;
+        uxService.logProgress(executionResult);
       } catch (error) {
         logger.logNegative(`(tagging-service)> Error while tagging file: ${filePath}`);
         errorService.handleErrorDuringIteration(error);
@@ -197,7 +206,9 @@ class TaggingService {
       operation: "untag",
       success: true,
       errorCount: 0,
+      totalCount: 0,
       tagRemovedCount: 0,
+      startedEpoch: Date.now(),
     };
 
     this.untagFiles(config.target.metaDataDir || config.target.dir, executionResult);
