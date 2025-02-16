@@ -6,6 +6,7 @@ import { getMetaFilePath, getRecoveryFilePath } from "../utility/meta-data-utils
 import { integrityService } from "./integrity-service.js";
 import fs from "fs";
 import { errorService } from "./error-service.js";
+import { ExecutionResult } from "../model/execution-results.js";
 
 class RecoveryService {
 
@@ -69,36 +70,44 @@ class RecoveryService {
     return true;
   }
 
-  async checkIntegrityAndRecover(config: Config): Promise<void> {
+  async checkIntegrityAndRecover(config: Config): Promise<ExecutionResult> {
     if (!config.recovery) {
       logger.log("(recovery-service)> No recovery configuration found. Skipping recovery.");
-      return;
+      return {
+        operation: "verify-and-recover",
+        success: true,
+        errorCount: 0,
+        recoveredCount: 0,
+      };
     }
 
     logger.log("(recovery-service)> Checking integrity before recovering.");
-    const listMap = await integrityService.verifyIntegrity(config);
+    const [listMap, executionResult] = await integrityService.verifyIntegrity(config);
+    executionResult.operation = "verify-and-recover";
+    executionResult.recoveredCount = 0;
 
     if (listMap.failed.length === 0) {
       logger.log("(recovery-service)> No files to recover.");
-      return;
+      return executionResult;
     }
 
     logger.log(`(recovery-service)> ${listMap.failed.length} files to recover.`);
 
-    let recoveredCount = 0;
     for (const filePath of listMap.failed) {
       try {
         const wasRecovered = await this.recoverFile(filePath, config);
         if (wasRecovered) {
-          recoveredCount++;
+          executionResult.recoveredCount!++;
         }
       } catch (error) {
         logger.log(`(recovery-service)> Error while recovering file: ${filePath}`);
         errorService.handleErrorDuringIteration(error);
+        executionResult.errorCount!++;
       }
     }
 
-    logger.log(`(recovery-service)> ${recoveredCount}/${listMap.failed.length} files recovered.`);
+    logger.log(`(recovery-service)> ${executionResult.recoveredCount}/${listMap.failed.length} files recovered.`);
+    return executionResult;
   }
 
 }

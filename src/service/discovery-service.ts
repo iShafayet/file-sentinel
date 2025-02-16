@@ -4,16 +4,17 @@ import path from "path";
 import constants from "../constant/common-constants.js";
 import { getMetaFilePath } from "../utility/meta-data-utils.js";
 import { errorService } from "./error-service.js";
+import { ExecutionResult } from "../model/execution-results.js";
 
 class DiscoveryService {
-  public populateFilesToTag(dir: string, rootDir: string, metaDataRootDir: string, untaggedFileList: string[], previouslyTaggedFileList: string[]): void {
+  public populateFilesToTag(dir: string, rootDir: string, metaDataRootDir: string, untaggedFileList: string[], previouslyTaggedFileList: string[], executionResult: ExecutionResult): void {
     const childList = fs.readdirSync(dir);
     for (const child of childList) {
       try {
         const childPath = path.join(dir, child);
         const childStat = fs.statSync(childPath);
         if (childStat.isDirectory()) {
-          this.populateFilesToTag(childPath, rootDir, metaDataRootDir, untaggedFileList, previouslyTaggedFileList);
+          this.populateFilesToTag(childPath, rootDir, metaDataRootDir, untaggedFileList, previouslyTaggedFileList, executionResult);
           continue;
         }
         if (child.startsWith(constants.META_FILE_PREFIX)) {
@@ -32,6 +33,7 @@ class DiscoveryService {
       } catch (error) {
         logger.log(`(discovery-service)> Error while populating files to tag: ${child}`);
         errorService.handleErrorDuringIteration(error);
+        executionResult.errorCount!++;
       }
     }
   }

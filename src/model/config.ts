@@ -2,7 +2,7 @@ import Joi from "joi";
 
 export type Operation = "untag"
   | "tag-new-only"
-  | "tag-new-and-update"
+  | "tag-new-and-update-existing"
   | "prune"
   | "verify-integrity"
   | "verify-and-recover";
@@ -30,7 +30,7 @@ export type Config = {
 };
 
 export const ConfigSchema = Joi.object({
-  operation: Joi.string().valid("untag", "tag-new-only", "tag-new-and-update", "prune", "verify-integrity", "verify-and-recover").required(),
+  operation: Joi.string().valid("untag", "tag-new-only", "tag-new-and-update-existing", "prune", "verify-integrity", "verify-and-recover").required(),
   target: Joi.object({
     dir: Joi.string().required(),
     metaDataDir: Joi.string().allow(null).required(),

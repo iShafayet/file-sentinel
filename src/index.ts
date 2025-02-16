@@ -2,17 +2,18 @@ import { Config } from "./model/config.js";
 import { logger } from "./lib/logger.js";
 import { sanityService } from "./service/sanity-service.js";
 import { coreService } from "./service/core-service.js";
+import { ExecutionResult } from "./model/execution-results.js";
 
 logger.init();
 
 export class FileSentinelProgram {
   config!: Config;
 
-  async start(config: Config) {
+  public async execute(config: Config): Promise<ExecutionResult> {
     try {
       this.config = config;
       await this.initialize();
-      await this.run();
+      return await this.run();
     } catch (ex) {
       logger.log("Error was propagated to root level. Throwing again.");
       throw ex;
@@ -25,14 +26,15 @@ export class FileSentinelProgram {
     logger.log("(program)> Initialization complete");
   }
 
-  private async run() {
+  private async run(): Promise<ExecutionResult> {
     const operation = this.config.operation;
     logger.log(`(program)> Running file-sentinel. operation: "${operation}"`);
-    await coreService.handle(this.config);
+    const result = await coreService.handle(this.config);
     logger.log("(program)> Run complete");
+    return result;
   }
 
-  async terminate() {
+  public async terminate() {
     logger.log("(program)> Terminating server");
     logger.log("(program)> Termination complete");
   }
