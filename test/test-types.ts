@@ -7,5 +7,5 @@ export type TestFile = {
 declare global {
   var testDataDir: string;
   var fileSentinelList: FileSentinelProgram[];
-
+  var largeFileSizeInBytes: number;
 }

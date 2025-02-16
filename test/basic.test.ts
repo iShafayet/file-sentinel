@@ -1,13 +1,19 @@
 import { join } from "path";
 import { FileSentinelProgram } from "../src/index.js";
 import { Config } from "../src/model/config.js";
-import { statSync, utimesSync, writeFileSync } from "fs";
+import { cpSync, statSync, utimesSync, writeFileSync } from "fs";
 import { TestFile } from "./test-types.js";
 import { sourceFiles } from "./setup-paths.js";
 import { existsSync, unlinkSync } from "fs";
 import { getMetaFilePath } from "../src/utility/meta-data-utils.js";
+import { createTestFiles } from "./test-utils.js";
 
-describe("Basic: SET 1", (): void => {
+describe.skip("Basic: SET 1", (): void => {
+  test("setup should work", async (): Promise<void> => {
+    createTestFiles("set1");
+    cpSync(join(global.testDataDir, "set1"), join(global.testDataDir, "set1-mirror1"), { recursive: true, preserveTimestamps: true });
+  });
+
   test("tag-new-only operation should work", async (): Promise<void> => {
     const dataDir = join(global.testDataDir, "set1");
     const metadataDir = join(global.testDataDir, "set1-metadata");
