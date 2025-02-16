@@ -27,6 +27,7 @@ export type Config = {
     verifyAfterRecovery: boolean;
   } | null;
   panicOnError: boolean;
+  verbose: boolean;
 };
 
 export const ConfigSchema = Joi.object({
@@ -47,4 +48,5 @@ export const ConfigSchema = Joi.object({
     verifyAfterRecovery: Joi.boolean().required(),
   }).allow(null).required(),
   panicOnError: Joi.boolean().required(),
+  verbose: Joi.boolean().required(),
 });

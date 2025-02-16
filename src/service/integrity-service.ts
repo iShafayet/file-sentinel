@@ -20,13 +20,13 @@ class IntegrityService {
 
   private async verifyFile(filePath: string, rootDir: string, metaDataRootDir: string, verificationMode: VerificationMode, listMap: ListMap): Promise<void> {
     const relativeFilePath = filePath.replace(rootDir, "");
-    logger.log(`(tagging-service)> Potentially updating file: ${relativeFilePath}`);
+    logger.debug(`(integrity-service)> Verifying file: ${relativeFilePath}`);
     const metaDataPath = getMetaFilePath(filePath, rootDir, metaDataRootDir);
 
     const existingMeta: FileMetaData = JSON.parse(fs.readFileSync(metaDataPath, "utf-8"));
     const { error } = fileMetaDataSchema.validate(existingMeta);
     if (error) {
-      logger.log(`(integrity-service)> ERROR: File ${relativeFilePath} has invalid meta data. Verification failed.`);
+      logger.logNegative(`(integrity-service)> ERROR: File ${relativeFilePath} has invalid meta data. Verification failed with error.`);
       listMap.error.push(relativeFilePath);
       return;
     }
@@ -45,7 +45,7 @@ class IntegrityService {
         listMap.failed.push(relativeFilePath);
         return;
       } else {
-        logger.log(`(integrity-service)> File ${relativeFilePath} is unchanged (size check passed)`);
+        logger.debug(`(integrity-service)> File ${relativeFilePath} is unchanged (size check passed)`);
         listMap.passed.push(relativeFilePath);
         return;
       }
@@ -58,7 +58,7 @@ class IntegrityService {
         listMap.failed.push(relativeFilePath);
         return;
       } else {
-        logger.log(`(integrity-service)> File ${relativeFilePath} is unchanged (hash check passed)`);
+        logger.debug(`(integrity-service)> File ${relativeFilePath} is unchanged (hash check passed)`);
         listMap.passed.push(relativeFilePath);
         return;
       }
@@ -90,13 +90,13 @@ class IntegrityService {
     discoveryService.populateFilesToTag(config.target.dir, config.target.dir, config.target.metaDataDir || config.target.dir, untaggedFileList, previouslyTaggedFileList, executionResult);
 
     if (untaggedFileList.length > 0) {
-      logger.log(`(integrity-service)> Found ${untaggedFileList.length} untagged files. These will not be able to be verified. It is recommended to tag those.`);
+      logger.debug(`(integrity-service)> Found ${untaggedFileList.length} untagged files. These will not be able to be verified. It is recommended to tag those.`);
     }
 
     if (previouslyTaggedFileList.length > 0) {
-      logger.log(`(integrity-service)> Found ${previouslyTaggedFileList.length} previously tagged files. These will be verified.`);
+      logger.debug(`(integrity-service)> Found ${previouslyTaggedFileList.length} previously tagged files. These will be verified.`);
     } else {
-      logger.log(`(integrity-service)> No previously tagged files found. Nothing to verify.`);
+      logger.debug(`(integrity-service)> No previously tagged files found. Nothing to verify.`);
       return [listMap, executionResult];
     }
 
@@ -104,7 +104,7 @@ class IntegrityService {
       try {
         await this.verifyFile(filePath, config.target.dir, config.target.metaDataDir || config.target.dir, config.verification.mode, listMap);
       } catch (error) {
-        logger.log(`(integrity-service)> Error while verifying file: ${filePath}`);
+        logger.logNegative(`(integrity-service)> Error while verifying file: ${filePath}`);
         errorService.handleErrorDuringIteration(error);
         executionResult.errorCount!++;
       }
@@ -143,12 +143,12 @@ class IntegrityService {
       try {
         const dataFilePath = getDataFilePath(metaDataFilePath, config.target.dir, config.target.metaDataDir || config.target.dir);
         if (!fs.existsSync(dataFilePath)) {
-          logger.log(`(integrity-service)> File ${dataFilePath} does not exist. Removing meta data file ${metaDataFilePath}`);
+          logger.debug(`(integrity-service)> File ${dataFilePath} does not exist. Removing meta data file ${metaDataFilePath}`);
           fs.unlinkSync(metaDataFilePath);
           executionResult.prunedCount!++;
         }
       } catch (error) {
-        logger.log(`(integrity-service)> Error while pruning meta data file: ${metaDataFilePath}`);
+        logger.logNegative(`(integrity-service)> Error while pruning meta data file: ${metaDataFilePath}`);
         errorService.handleErrorDuringIteration(error);
         executionResult.errorCount!++;
       }

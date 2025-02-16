@@ -7,10 +7,12 @@ import {
 } from "./utility/startup-utils.js";
 import { FileSentinelProgram } from "./index.js";
 import { normalizePathsInConfig } from "./utility/config-utils.js";
-
+import { logger } from "./lib/logger.js";
 let commandLineParams = extractProcessParams();
 console.log("STARTUP Application parameters: ", commandLineParams);
 
 let config: Config = lookupAndLoadConfigAsync(commandLineParams);
 normalizePathsInConfig(config);
+
+logger.init(config.verbose);
 new FileSentinelProgram().execute(config);

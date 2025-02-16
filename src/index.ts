@@ -4,8 +4,6 @@ import { sanityService } from "./service/sanity-service.js";
 import { coreService } from "./service/core-service.js";
 import { ExecutionResult } from "./model/execution-results.js";
 
-logger.init();
-
 export class FileSentinelProgram {
   config!: Config;
 

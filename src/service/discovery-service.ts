@@ -23,15 +23,15 @@ class DiscoveryService {
         if (childStat.isFile()) {
           const metaDataPath = getMetaFilePath(childPath, rootDir, metaDataRootDir);
           if (!fs.existsSync(metaDataPath)) {
-            logger.log(`(tagging-service)> File ${childPath} is new`);
+            logger.debug(`(tagging-service)> File ${childPath} is new`);
             untaggedFileList.push(childPath);
           } else {
-            logger.log(`(tagging-service)> File ${childPath} has existing meta data`);
+            logger.debug(`(tagging-service)> File ${childPath} has existing meta data`);
             previouslyTaggedFileList.push(childPath);
           }
         }
       } catch (error) {
-        logger.log(`(discovery-service)> Error while populating files to tag: ${child}`);
+        logger.logNegative(`(discovery-service)> Error while populating files to tag: ${child}`);
         errorService.handleErrorDuringIteration(error);
         executionResult.errorCount!++;
       }
@@ -52,7 +52,7 @@ class DiscoveryService {
           metadataFileList.push(childPath);
         }
       } catch (error) {
-        logger.log(`(discovery-service)> Error while populating metadata files: ${child}`);
+        logger.logNegative(`(discovery-service)> Error while populating metadata files: ${child}`);
         errorService.handleErrorDuringIteration(error);
       }
     }

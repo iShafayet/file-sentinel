@@ -16,7 +16,6 @@ export const getMetaFilePath = (childFilePath: string, rootDir: string, metaData
   return path.join(metaDataRootDir, dirPath, metaFileName);
 };
 
-
 export const getDataFilePath = (metaDataFilePath: string, rootDir: string, metaDataRootDir: string): string => {
   const relativePath = metaDataFilePath.replace(metaDataRootDir, "");
   let fileName = path.basename(relativePath);
