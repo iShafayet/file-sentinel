@@ -67,6 +67,7 @@ class IntegrityService {
         const progressString = `${Math.floor(bytesRead / 1_000_000) / 1000}GB/${Math.floor(fileStat.size / 1_000_000) / 1000}GB`;
         const percentage = Math.floor((bytesRead / fileStat.size) * 10000) / 100;
         logger.log(`(integrity-service)> Processing ${relativeFilePath}. Progress: ${progressString} (${percentage}%)`);
+        uxService.logProgress(executionResult);
       });
       if (existingMeta.hash.sha256 !== hash) {
         logger.log(`(integrity-service)> File ${relativeFilePath} has been corrupted (hash from meta: ${existingMeta.hash.sha256}, hash from file: ${hash}) (changed without updating modifiedAt). Failed verification.`);
