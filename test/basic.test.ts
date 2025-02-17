@@ -8,7 +8,7 @@ import { existsSync, unlinkSync } from "fs";
 import { getMetaFilePath } from "../src/utility/meta-data-utils.js";
 import { createTestFiles } from "./test-utils.js";
 
-describe.skip("Basic: SET 1", (): void => {
+describe("Basic: SET 1", (): void => {
   test("setup should work", async (): Promise<void> => {
     createTestFiles("set1");
     cpSync(join(global.testDataDir, "set1"), join(global.testDataDir, "set1-mirror1"), { recursive: true, preserveTimestamps: true });
