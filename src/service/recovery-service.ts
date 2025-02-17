@@ -9,7 +9,7 @@ import { errorService } from "./error-service.js";
 import { ExecutionResult } from "../model/execution-results.js";
 import { fileService } from "./file-service.js";
 import constants from "../constant/common-constants.js";
-
+import { uxService } from "./ux-service.js";
 class RecoveryService {
 
   private async recoverFile(filePath: string, config: Config): Promise<boolean> {
@@ -81,27 +81,20 @@ class RecoveryService {
     return true;
   }
 
-  public async checkIntegrityAndRecover(config: Config): Promise<ExecutionResult> {
+  public async checkIntegrityAndRecover(config: Config, executionResult: ExecutionResult): Promise<void> {
     if (!config.recovery) {
       logger.log("(recovery-service)> No recovery configuration found. Skipping recovery.");
-      return {
-        operation: "verify-and-recover",
-        success: true,
-        errorCount: 0,
-        totalCount: 0,
-        recoveredCount: 0,
-        startedEpoch: Date.now(),
-      };
     }
 
     logger.log("(recovery-service)> Checking integrity before recovering.");
-    const [listMap, executionResult] = await integrityService.verifyIntegrity(config);
+    executionResult.operation = "verify-integrity";
+    const listMap = await integrityService.verifyIntegrity(config, executionResult);
     executionResult.operation = "verify-and-recover";
-    executionResult.recoveredCount = 0;
 
     if (listMap.failed.length === 0) {
       logger.log("(recovery-service)> No files to recover.");
-      return executionResult;
+      uxService.logProgress(executionResult);
+      return;
     }
 
     logger.log(`(recovery-service)> ${listMap.failed.length} files to recover.`);
@@ -110,17 +103,20 @@ class RecoveryService {
       try {
         const wasRecovered = await this.recoverFile(filePath, config);
         if (wasRecovered) {
-          executionResult.recoveredCount!++;
+          executionResult.recoverySuccessfulCount++;
+        } else {
+          executionResult.recoveryFailedCount++;
         }
       } catch (error) {
         logger.logNegative(`(recovery-service)> Error while recovering file: ${filePath}`);
         errorService.handleErrorDuringIteration(error);
-        executionResult.errorCount!++;
+        executionResult.errorCount++;
       }
+      uxService.logProgress(executionResult);
     }
+    uxService.logProgress(executionResult);
 
-    logger.log(`(recovery-service)> ${executionResult.recoveredCount}/${listMap.failed.length} files recovered.`);
-    return executionResult;
+    logger.log(`(recovery-service)> ${executionResult.recoverySuccessfulCount}/${listMap.failed.length} files recovered and ${executionResult.recoveryFailedCount}/${listMap.failed.length} files failed.`);
   }
 
 }

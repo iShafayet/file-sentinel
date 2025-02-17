@@ -383,7 +383,8 @@ describe.skip("Basic: SET 1", (): void => {
     expect(executionResult.success).toBe(true);
     expect(executionResult.errorCount).toBe(0);
     expect(executionResult.verificationPassedCount).toBe(9);
-    expect(executionResult.recoveredCount).toBe(1);
+    expect(executionResult.recoverySuccessfulCount).toBe(1);
+    expect(executionResult.recoveryFailedCount).toBe(0);
   });
 
   // eof

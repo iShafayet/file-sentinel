@@ -21,14 +21,14 @@ export class FileSentinelProgram {
   private async initialize() {
     logger.log("(program)> Initializing file-sentinel");
     sanityService.verifyPathsInConfig(this.config);
-    logger.log("(program)> Initialization complete");
+    logger.debug("(program)> Initialization complete");
   }
 
   private async run(): Promise<ExecutionResult> {
     const operation = this.config.operation;
-    logger.log(`(program)> Running file-sentinel. operation: "${operation}"`);
+    logger.log(`(program)> Executing operation: "${operation}"`);
     const result = await coreService.handle(this.config);
-    logger.log("(program)> Run complete");
+    logger.log("(program)> Operation complete");
     return result;
   }
 

@@ -1,10 +1,9 @@
 import { readFileSync } from "fs";
 import { Config, ConfigSchema } from "../model/config.js";
 import { parseCommandLineArgs } from "./cli-parser.js";
+import { logger } from "../lib/logger.js";
 
 export const extractProcessParams = () => {
-  console.log("STARTUP extractProcessParams", process.argv);
-
   if (process.argv.length < 2) {
     throw new Error("Invalid number of arguments");
   }
@@ -22,6 +21,21 @@ export const extractProcessParams = () => {
   return process.argv;
 };
 
+export const determineVerbosity = (commandLineParams: string[]) => {
+  const index = commandLineParams.indexOf("--verbose");
+  if (index === -1) {
+    return false;
+  }
+
+  if (index === commandLineParams.length - 1) {
+    return false;
+  }
+
+  const nextArg = commandLineParams[index + 1];
+
+  return nextArg === "true";
+};
+
 const validateAndOptimizeConfig = (config: Config) => {
   const { error } = ConfigSchema.validate(config);
   if (error) {
@@ -32,13 +46,12 @@ const validateAndOptimizeConfig = (config: Config) => {
 };
 
 export const loadConfig = (path: string): Config => {
-  console.log(`STARTUP trying to load configuration from: ${path}`);
+  logger.debug(`STARTUP trying to load configuration from: ${path}`);
   let content = readFileSync(<any>path, { encoding: "utf8" });
-  console.log(`STARTUP loading config: ${content}`);
+  logger.debug(`STARTUP loading config: ${content}`);
   const config = JSON.parse(content) as Config;
   validateAndOptimizeConfig(config);
-  console.log(`STARTUP optimized config: ${JSON.stringify(config)}`);
-  process.exit(0);
+  logger.debug(`STARTUP optimized config: ${JSON.stringify(config)}`);
   return config;
 };
 
@@ -62,7 +75,7 @@ export const lookupAndLoadConfigAsync = (commandLineParams: string[], overrideCo
     let index = commandLineParams.indexOf(ARG_CONFIG_LOCATION) + 1;
     let configLocation = commandLineParams[index];
 
-    console.log(
+    logger.debug(
       "STARTUP Config location (from command line): ",
       configLocation
     );
@@ -72,7 +85,7 @@ export const lookupAndLoadConfigAsync = (commandLineParams: string[], overrideCo
   // Next priority is the environment variable;
   if (process.env[ENVIRONMENT_CONFIG_LOCATION_KEY]) {
     let configLocation = process.env[ENVIRONMENT_CONFIG_LOCATION_KEY];
-    console.log(
+    logger.debug(
       "STARTUP Config location (from environment variable): ",
       configLocation
     );
