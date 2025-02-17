@@ -25,24 +25,28 @@ class UxService {
 
     const operation = executionResult.operation;
 
-    const operationNameMap: Record<Operation, string> = {
-      "tag-new-only": "Tagging new files only",
-      "tag-new-and-update-existing": "Tagging new and updating existing files",
-      "untag": "Untagging files",
-      "verify-integrity": "Verifying integrity",
-      "prune": "Pruning files",
-      "verify-and-recover": "Verifying and recovering files",
-    };
-    const prettyOperation = operationNameMap[operation] || operation;
-
     const totalCount = executionResult.totalCount;
     const errorCount = executionResult.errorCount;
 
-    const successCount = 0;
-
     const runningTimeString = this.getFormattedRunningTime(executionResult.startedEpoch);
 
-    const message = `${prettyOperation} - Total: ${totalCount}, Error: ${errorCount}, Success: ${successCount}, Time Elapsed: ${runningTimeString}`;
+    let message = "";
+    if (operation === "tag-new-only") {
+      message = `Operation: "${operation}" - Completed: ${executionResult.tagAddedCount}/${totalCount}, Errors: ${errorCount}, Time Elapsed: ${runningTimeString}`;
+    } else if (operation === "tag-new-and-update-existing") {
+      const completedCount = (executionResult.tagAddedCount || 0) + (executionResult.tagUpdatedCount || 0) + (executionResult.tagSkippedCount || 0);
+      message = `Operation: "${operation}" - Completed: ${completedCount}/${totalCount}, Errors: ${errorCount}, Time Elapsed: ${runningTimeString}`;
+    } else if (operation === "untag") {
+      message = `Operation: "${operation}" - Removed so far: ${executionResult.tagRemovedCount}, Errors: ${errorCount}, Time Elapsed: ${runningTimeString}`;
+    } else if (operation === "verify-integrity") {
+      message = `Operation: "${operation}" - Completed: ${executionResult.verificationPassedCount}/${totalCount}, Errors: ${errorCount}, Time Elapsed: ${runningTimeString}`;
+    } else if (operation === "prune") {
+      message = `Operation: "${operation}" - Completed: ${executionResult.prunedTagCount}/${totalCount}, Errors: ${errorCount}, Time Elapsed: ${runningTimeString}`;
+    } else if (operation === "verify-and-recover") {
+      message = `Operation: "${operation}" - Total: ${totalCount}, Recovery Successful: ${executionResult.recoverySuccessfulCount}, Recovery Failed: ${executionResult.recoveryFailedCount}, Errors: ${errorCount}, Time Elapsed: ${runningTimeString}`;
+    } else {
+      message = `Operation: "${operation}" - Total: ${totalCount}, Errors: ${errorCount}, Time Elapsed: ${runningTimeString}`;
+    }
 
     logger.log(message);
   }

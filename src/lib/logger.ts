@@ -24,11 +24,16 @@ class Logger {
   }
 
   init(verbose: boolean) {
+    this.setVerbosity(verbose);
+    this.debug("Logger initated");
+  }
+
+  setVerbosity(verbose: boolean) {
     if (verbose) {
-      this.switches.log = true;
       this.switches.debug = true;
+    } else {
+      this.switches.debug = false;
     }
-    this.log("Logger initated");
   }
 
   debug(...args: any) {

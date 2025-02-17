@@ -4,28 +4,30 @@ import { taggingService } from "./tagging-service.js";
 import { integrityService } from "./integrity-service.js";
 import { recoveryService } from "./recovery-service.js";
 import { errorService } from "./error-service.js";
-import { ExecutionResult } from "../model/execution-results.js";
+import { ExecutionResult, makeExecutionResult } from "../model/execution-results.js";
 
 class CoreService {
   async handle(config: Config): Promise<ExecutionResult> {
     errorService.setConfig(config);
 
+    const executionResult = makeExecutionResult(config.operation);
     if (config.operation === "untag") {
-      return await taggingService.untag(config);
+      await taggingService.untag(config, executionResult);
     } else if (config.operation === "tag-new-only") {
-      return await taggingService.tagNewOnly(config);
+      await taggingService.tagNewOnly(config, executionResult);
     } else if (config.operation === "tag-new-and-update-existing") {
-      return await taggingService.tagNewAndUpdateExisting(config);
+      await taggingService.tagNewAndUpdateExisting(config, executionResult);
     } else if (config.operation === "prune") {
-      return await integrityService.prune(config);
+      await integrityService.prune(config, executionResult);
     } else if (config.operation === "verify-integrity") {
-      const [listMap, executionResult] = await integrityService.verifyIntegrity(config);
-      return executionResult;
+      const listMap = await integrityService.verifyIntegrity(config, executionResult);
     } else if (config.operation === "verify-and-recover") {
-      return await recoveryService.checkIntegrityAndRecover(config);
+      await recoveryService.checkIntegrityAndRecover(config, executionResult);
+    } else {
+      throw new Error(`Invalid operation: ${config.operation}`);
     }
 
-    throw new Error(`Invalid operation: ${config.operation}`);
+    return executionResult;
   }
 }
 
