@@ -1,33 +1,41 @@
 import { logger } from "../lib/logger.js";
 import { Config } from "../model/config.js";
-import { taggingService } from "./tagging-service.js";
-import { integrityService } from "./integrity-service.js";
-import { recoveryService } from "./recovery-service.js";
+import { ExecutionResult } from "../model/execution-results.js";
+import { digestService } from "./digest-service.js";
+import { verifyService } from "./verify-service.js";
+import { replicateService } from "./replicate-service.js";
+import { healService } from "./heal-service.js";
 import { errorService } from "./error-service.js";
-import { ExecutionResult, makeExecutionResult } from "../model/execution-results.js";
 
+/**
+ * Core service that routes commands to appropriate service handlers
+ */
 class CoreService {
+  /**
+   * Handles the execution of a command based on the config
+   */
   async handle(config: Config): Promise<ExecutionResult> {
     errorService.setConfig(config);
 
-    const executionResult = makeExecutionResult(config.operation);
-    if (config.operation === "untag") {
-      await taggingService.untag(config, executionResult);
-    } else if (config.operation === "tag-new-only") {
-      await taggingService.tagNewOnly(config, executionResult);
-    } else if (config.operation === "tag-new-and-update-existing") {
-      await taggingService.tagNewAndUpdateExisting(config, executionResult);
-    } else if (config.operation === "prune") {
-      await integrityService.prune(config, executionResult);
-    } else if (config.operation === "verify-integrity") {
-      const listMap = await integrityService.verifyIntegrity(config, executionResult);
-    } else if (config.operation === "verify-and-recover") {
-      await recoveryService.checkIntegrityAndRecover(config, executionResult);
-    } else {
-      throw new Error(`Invalid operation: ${config.operation}`);
-    }
+    logger.debug(`(core-service)> Handling command: ${config.command}`);
 
-    return executionResult;
+    switch (config.command) {
+      case "digest":
+        return await digestService.execute(config);
+
+      case "verify":
+        return await verifyService.execute(config);
+
+      case "replicate":
+        return await replicateService.execute(config);
+
+      case "heal":
+        return await healService.execute(config);
+
+      default:
+        // TypeScript should prevent this, but include for safety
+        throw new Error(`Unknown command: ${(config as any).command}`);
+    }
   }
 }
 
