@@ -2,8 +2,9 @@ import path from "path";
 import constants from "../constant/common-constants.js";
 
 /**
- * Parses the input option format "directory:digest-file"
- * @param input - Input string in format "/path/to/dir:/path/to/digest.db"
+ * Parses the input option format "directory::digest-file"
+ * Uses "::" as separator to avoid conflicts with Windows drive letters (e.g., C:\)
+ * @param input - Input string in format "/path/to/dir::/path/to/digest.db" or "C:\path::C:\digest.db"
  * @returns Object with dir and digestFile paths
  */
 export function parseInputOption(input: string): { dir: string; digestFile: string } {
@@ -11,15 +12,17 @@ export function parseInputOption(input: string): { dir: string; digestFile: stri
     throw new Error("Input option must be a non-empty string");
   }
 
-  const parts = input.split(":");
+  // Use "::" as separator to avoid conflicts with Windows drive letters
+  const separatorIndex = input.indexOf("::");
 
-  if (parts.length !== 2) {
+  if (separatorIndex === -1) {
     throw new Error(
-      `Invalid input format: "${input}". Expected format: "/path/to/dir:/path/to/digest.db"`
+      `Invalid input format: "${input}". Expected format: "/path/to/dir::/path/to/digest.db" (use :: as separator)`
     );
   }
 
-  const [dir, digestFile] = parts;
+  const dir = input.substring(0, separatorIndex);
+  const digestFile = input.substring(separatorIndex + 2);
 
   if (!dir || !digestFile) {
     throw new Error(

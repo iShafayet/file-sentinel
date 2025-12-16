@@ -60,7 +60,7 @@ class UxService {
         break;
 
       case "replicate":
-        message = `[REPLICATE] Copied: ${executionResult.filesCopied || 0}, Failed: ${executionResult.filesRecoveryFailed || 0}, Errors: ${errorCount}, Time: ${runningTimeString}`;
+        message = `[REPLICATE] Copied: ${executionResult.filesCopied || 0}, Deleted: ${executionResult.filesDeleted || 0}, Failed: ${executionResult.filesRecoveryFailed || 0}, Errors: ${errorCount}, Time: ${runningTimeString}`;
         break;
 
       case "heal":
@@ -106,6 +106,7 @@ class UxService {
 
       case "replicate":
         logger.log(`Files Copied: ${executionResult.filesCopied || 0}`);
+        logger.log(`Files Deleted: ${executionResult.filesDeleted || 0}`);
         logger.log(`Files Recovery Failed: ${executionResult.filesRecoveryFailed || 0}`);
         break;
 

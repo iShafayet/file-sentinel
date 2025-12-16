@@ -41,12 +41,14 @@ class HealService {
         throw new Error(`Digest file does not exist: ${config.digestFile}`);
       }
 
+      // Note: In dry-run mode, we still need to open the database to read file information
+      // for verification. We just don't log operations or write any changes.
       if (!config.dryRun) {
         db.open(config.digestFile);
         operationId = db.startOperation("heal");
         logger.log("(heal-service)> Database opened successfully");
       } else {
-        // For dry run, open in read-only mode
+        // For dry run, open database for reading only (no operation log)
         db.open(config.digestFile);
         logger.log("(heal-service)> Database opened in read-only mode (dry run)");
       }
