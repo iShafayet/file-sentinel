@@ -1,82 +1,194 @@
-import { Command } from 'commander';
-import { Config, ConfigSchema, Operation, VerificationMode } from '../model/config.js';
+import { Command } from "commander";
+import {
+  Config,
+  DigestConfig,
+  VerifyConfig,
+  ReplicateConfig,
+  HealConfig,
+} from "../model/config.js";
+import { parseInputOption } from "./path-utils.js";
 
-export const parseCommandLineArgs = (): Config | null => {
+/**
+ * Parses command line arguments and returns a Config object
+ */
+export function parseArgs(argv?: string[]): Config {
   const program = new Command();
 
+  let parsedConfig: Config | null = null;
+
   program
-    .option('--config <path>', 'Config file path')
-    .option('-o, --operation <type>', 'Operation type (untag|tag-new-only|tag-new-and-update-existing|prune|verify-integrity|verify-and-recover)')
-    .option('-d, --target-dir <path>', 'Target directory path')
-    .option('-m, --target-metadata-dir <path>', 'Target metadata directory path')
-    .option('--hash-recheck-threshold <milliseconds>', 'Hash recheck threshold in milliseconds', '3600000')
-    .option('--skip-transparently-modified <bool>', 'Skip transparently modified files', 'true')
-    .option('--verification-mode <mode>', 'Verification mode (size|size-and-hash)', 'size-and-hash')
-    .option('--mirror-dir <path>', 'Mirror directory path for recovery')
-    .option('--mirror-metadata-dir <path>', 'Mirror metadata directory path for recovery')
-    .option('--mirror-precedence <bool>', 'Mirror modification takes precedence', 'false')
-    .option('--verify-after-recovery <bool>', 'Verify after recovery', 'true')
-    .option('--panic-on-error <bool>', 'Panic on error', 'false')
-    .option('--verbose <bool>', 'Verbose output', 'false');
+    .name("file-sentinel")
+    .description("File integrity and replication tool")
+    .version("2.0.0");
 
-  program.parse();
-  const options = program.opts();
+  // Digest command
+  program
+    .command("digest")
+    .description("Create or update digest of a directory")
+    .requiredOption(
+      "-i, --input <dir:digest>",
+      "Input directory and digest file (format: /path/to/dir:/path/to/digest.db)"
+    )
+    .option("-a, --hash-algorithm <algo>", "Hash algorithm", "sha256")
+    .option("--verbose", "Verbose output", false)
+    .option("--panic-on-error", "Exit on first error", false)
+    .option("--dry-run", "Simulate without writing", false)
+    .option("-t, --io-timeout <seconds>", "IO timeout in seconds", "30")
+    .action((options) => {
+      const { dir, digestFile } = parseInputOption(options.input);
+      const config: DigestConfig = {
+        command: "digest",
+        inputDir: dir,
+        digestFile: digestFile,
+        hashAlgorithm: options.hashAlgorithm as "sha256",
+        verbose: options.verbose,
+        panicOnError: options.panicOnError,
+        dryRun: options.dryRun,
+        ioTimeout: parseInt(options.ioTimeout, 10),
+      };
+      parsedConfig = config;
+    });
 
-  const config: Partial<Config> = {};
+  // Verify command
+  program
+    .command("verify")
+    .description("Verify directory against digest")
+    .requiredOption(
+      "-i, --input <dir:digest>",
+      "Input directory and digest file (format: /path/to/dir:/path/to/digest.db)"
+    )
+    .option("-s, --subdirectory <path>", "Subdirectory to verify")
+    .option("-a, --hash-algorithm <algo>", "Hash algorithm", "sha256")
+    .option("--verbose", "Verbose output", false)
+    .option("--panic-on-error", "Exit on first error", false)
+    .option("--dry-run", "Simulate without writing", false)
+    .option("-t, --io-timeout <seconds>", "IO timeout in seconds", "30")
+    .action((options) => {
+      const { dir, digestFile } = parseInputOption(options.input);
+      const config: VerifyConfig = {
+        command: "verify",
+        inputDir: dir,
+        digestFile: digestFile,
+        subdirectory: options.subdirectory || null,
+        hashAlgorithm: options.hashAlgorithm as "sha256",
+        verbose: options.verbose,
+        panicOnError: options.panicOnError,
+        dryRun: options.dryRun,
+        ioTimeout: parseInt(options.ioTimeout, 10),
+      };
+      parsedConfig = config;
+    });
 
-  if (options.operation) {
-    config.operation = options.operation as Operation;
-  }
+  // Replicate command
+  program
+    .command("replicate")
+    .description("Replicate directory to destination")
+    .requiredOption(
+      "-i, --input <dir:digest>",
+      "Source directory and digest file (format: /path/to/dir:/path/to/digest.db)"
+    )
+    .requiredOption(
+      "-o, --output <dir:digest>",
+      "Destination directory and digest file (format: /path/to/dir:/path/to/digest.db)"
+    )
+    .option("-s, --subdirectory <path>", "Subdirectory to replicate")
+    .option(
+      "--mirror <dir:digest>",
+      "Mirror source (can be repeated, format: /path/to/dir:/path/to/digest.db)",
+      collectMirrors,
+      []
+    )
+    .option("--perma-delete", "Permanently delete instead of recycle", false)
+    .option("-a, --hash-algorithm <algo>", "Hash algorithm", "sha256")
+    .option("--verbose", "Verbose output", false)
+    .option("--panic-on-error", "Exit on first error", false)
+    .option("--dry-run", "Simulate without writing", false)
+    .option("-t, --io-timeout <seconds>", "IO timeout in seconds", "30")
+    .action((options) => {
+      const source = parseInputOption(options.input);
+      const dest = parseInputOption(options.output);
+      const config: ReplicateConfig = {
+        command: "replicate",
+        sourceDir: source.dir,
+        sourceDigestFile: source.digestFile,
+        destDir: dest.dir,
+        destDigestFile: dest.digestFile,
+        subdirectory: options.subdirectory || null,
+        mirrors: options.mirror,
+        permaDelete: options.permaDelete,
+        hashAlgorithm: options.hashAlgorithm as "sha256",
+        verbose: options.verbose,
+        panicOnError: options.panicOnError,
+        dryRun: options.dryRun,
+        ioTimeout: parseInt(options.ioTimeout, 10),
+      };
+      parsedConfig = config;
+    });
 
-  if (options.targetDir || options.targetMetadataDir) {
-    config.target = {
-      dir: options.targetDir,
-      metaDataDir: options.targetMetadataDir || null
-    };
-  }
+  // Heal command
+  program
+    .command("heal")
+    .description("Heal directory from mirrors")
+    .requiredOption(
+      "-i, --input <dir:digest>",
+      "Directory and digest file to heal (format: /path/to/dir:/path/to/digest.db)"
+    )
+    .option("-s, --subdirectory <path>", "Subdirectory to heal")
+    .requiredOption(
+      "--mirror <dir:digest>",
+      "Mirror source (can be repeated, at least one required, format: /path/to/dir:/path/to/digest.db)",
+      collectMirrors,
+      []
+    )
+    .option("-a, --hash-algorithm <algo>", "Hash algorithm", "sha256")
+    .option("--verbose", "Verbose output", false)
+    .option("--panic-on-error", "Exit on first error", false)
+    .option("--dry-run", "Simulate without writing", false)
+    .option("-t, --io-timeout <seconds>", "IO timeout in seconds", "30")
+    .action((options) => {
+      const { dir, digestFile } = parseInputOption(options.input);
 
-  if (options.hashRecheckThreshold || options.skipTransparentlyModified) {
-    config.integrity = {
-      hashRecheckThresholdMillis: parseInt(options.hashRecheckThreshold) || 0,
-      skipTransparentlyModified: options.skipTransparentlyModified === 'true'
-    };
-  }
+      // Validate that at least one mirror is provided
+      if (!options.mirror || options.mirror.length === 0) {
+        console.error("Error: At least one --mirror must be provided for the heal command");
+        process.exit(1);
+      }
 
-  if (options.verificationMode) {
-    config.verification = {
-      mode: options.verificationMode as VerificationMode,
-      hash: 'sha256'
-    };
-  }
+      const config: HealConfig = {
+        command: "heal",
+        inputDir: dir,
+        digestFile: digestFile,
+        subdirectory: options.subdirectory || null,
+        mirrors: options.mirror,
+        hashAlgorithm: options.hashAlgorithm as "sha256",
+        verbose: options.verbose,
+        panicOnError: options.panicOnError,
+        dryRun: options.dryRun,
+        ioTimeout: parseInt(options.ioTimeout, 10),
+      };
+      parsedConfig = config;
+    });
 
-  if (options.mirrorDir || options.mirrorMetadataDir) {
-    config.recovery = {
-      mirrorDir: options.mirrorDir,
-      mirrorMetaDataDir: options.mirrorMetadataDir || null,
-      mirrorModificationTakesPrecedence: options.mirrorPrecedence === 'true',
-      verifyAfterRecovery: options.verifyAfterRecovery === 'true'
-    };
+  // Parse arguments
+  if (argv) {
+    program.parse(argv);
   } else {
-    config.recovery = null;
+    program.parse(process.argv);
   }
 
-  if (options.panicOnError) {
-    config.panicOnError = options.panicOnError === 'true';
+  // If no command was executed, show help and exit
+  if (!parsedConfig) {
+    program.help();
+    process.exit(0);
   }
 
-  if (options.verbose) {
-    config.verbose = options.verbose === 'true';
-  }
+  return parsedConfig;
+}
 
-  // If we have all required config from CLI, validate and return it
-  if (config.operation && config.target) {
-    const { error } = ConfigSchema.validate(config);
-    if (!error) {
-      return config as Config;
-    } else {
-      console.error("Invalid CLI configuration:", error);
-    }
-  }
-
-  return null;
-}; 
+/**
+ * Collector function for mirrors
+ */
+function collectMirrors(value: string, previous: Array<{ dir: string; digestFile: string }>): Array<{ dir: string; digestFile: string }> {
+  const parsed = parseInputOption(value);
+  return [...previous, parsed];
+}
