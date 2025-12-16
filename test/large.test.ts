@@ -1,163 +1,99 @@
 import { join } from "path";
 import { FileSentinelProgram } from "../src/index.js";
-import { Config } from "../src/model/config.js";
-import { cpSync, statSync, utimesSync, writeFileSync } from "fs";
-import { TestFile } from "./test-types.js";
-import { sourceFiles } from "./setup-paths.js";
-import { existsSync, unlinkSync } from "fs";
-import { getMetaFilePath } from "../src/utility/meta-data-utils.js";
-import { createSingleTestFile, createTestFiles, loadTestConfig } from "./test-utils.js";
+import { DigestConfig, VerifyConfig, ReplicateConfig } from "../src/model/config.js";
+import { existsSync, writeFileSync } from "fs";
+import { createSingleTestFile, getDigestFilePath, getTestDirPath } from "./test-utils.js";
 
-loadTestConfig();
+describe("Large File Tests - v2", (): void => {
+  const largeFileName = "large-file.bin";
+  const largeFileSize = global.largeFileSizeInBytes;
 
-describe("Large file: SET 2", (): void => {
+  test("setup large file test", async (): Promise<void> => {
+    console.log(`Creating large file: ${largeFileSize} bytes (${(largeFileSize / (1024 * 1024 * 1024)).toFixed(2)} GB)`);
+    createSingleTestFile("large", largeFileName, largeFileSize);
+    const largeFilePath = join(getTestDirPath("large"), largeFileName);
+    expect(existsSync(largeFilePath)).toBe(true);
+  }, 600000); // 10 minute timeout
 
-  test("setup should work", async (): Promise<void> => {
-    createSingleTestFile("set2", "large-file.txt", global.largeFileSizeInBytes);
-    cpSync(join(global.testDataDir, "set2"), join(global.testDataDir, "set2-mirror1"), { recursive: true, preserveTimestamps: true });
-  });
+  test("digest large file", async (): Promise<void> => {
+    const dataDir = getTestDirPath("large");
+    const digestFile = getDigestFilePath("large");
 
-  test("tag-new-only operation should work", async (): Promise<void> => {
-    const dataDir = join(global.testDataDir, "set2");
-    const metadataDir = join(global.testDataDir, "set2-metadata");
-
-    const config: Config = {
-      operation: "tag-new-only",
-      target: {
-        dir: dataDir,
-        metaDataDir: metadataDir
-      },
-      integrity: {
-        skipTransparentlyModified: true,
-        hashRecheckThresholdMillis: 0,
-      },
-      verification: {
-        mode: "size",
-        hash: "sha256"
-      },
-      recovery: null,
+    const config: DigestConfig = {
+      command: "digest",
+      inputDir: dataDir,
+      digestFile: digestFile,
+      hashAlgorithm: "sha256",
+      verbose: true,
       panicOnError: true,
-      verbose: true
+      dryRun: false,
+      ioTimeout: 300,
     };
 
-    let fileSentinel = new FileSentinelProgram();
+    const fileSentinel = new FileSentinelProgram();
     const executionResult = await fileSentinel.execute(config);
     await fileSentinel.terminate();
 
     expect(executionResult.success).toBe(true);
-    expect(executionResult.errorCount).toBe(0);
-    expect(executionResult.tagAddedCount).toBe(1);
-  });
+    expect(executionResult.filesAdded).toBe(1);
+    expect(existsSync(digestFile)).toBe(true);
+  }, 600000); // 10 minute timeout
 
-  test("tag-new-only operation should work (mirror1)", async (): Promise<void> => {
-    const dataDir = join(global.testDataDir, "set2-mirror1");
-    const metadataDir = join(global.testDataDir, "set2-mirror1-metadata");
+  test("verify large file", async (): Promise<void> => {
+    const dataDir = getTestDirPath("large");
+    const digestFile = getDigestFilePath("large");
 
-    const config: Config = {
-      operation: "tag-new-only",
-      target: {
-        dir: dataDir,
-        metaDataDir: metadataDir
-      },
-      integrity: {
-        skipTransparentlyModified: true,
-        hashRecheckThresholdMillis: 0,
-      },
-      verification: {
-        mode: "size",
-        hash: "sha256"
-      },
-      recovery: null,
+    const config: VerifyConfig = {
+      command: "verify",
+      inputDir: dataDir,
+      digestFile: digestFile,
+      subdirectory: null,
+      hashAlgorithm: "sha256",
+      verbose: true,
       panicOnError: true,
-      verbose: true
+      dryRun: false,
+      ioTimeout: 300,
     };
 
-    let fileSentinel = new FileSentinelProgram();
+    const fileSentinel = new FileSentinelProgram();
     const executionResult = await fileSentinel.execute(config);
     await fileSentinel.terminate();
 
     expect(executionResult.success).toBe(true);
-    expect(executionResult.errorCount).toBe(0);
-    expect(executionResult.tagAddedCount).toBe(1);
-  });
+    expect(executionResult.filesVerified).toBe(1);
+    expect(executionResult.filesFailed).toBe(0);
+  }, 600000); // 10 minute timeout
 
-  test("overwriting operation should work", async (): Promise<void> => {
-    createSingleTestFile("set2", "large-file.txt", global.largeFileSizeInBytes);
-  });
+  test("replicate large file", async (): Promise<void> => {
+    const sourceDir = getTestDirPath("large");
+    const sourceDigestFile = getDigestFilePath("large");
+    const destDir = getTestDirPath("large-copy");
+    const destDigestFile = getDigestFilePath("large-copy");
 
-  test("verify-integrity should show 0 as passed, 1 as failed (skipTransparentlyModified: false)", async (): Promise<void> => {
-    const dataDir = join(global.testDataDir, "set2");
-    const metadataDir = join(global.testDataDir, "set2-metadata");
-
-    const config: Config = {
-      operation: "verify-integrity",
-      target: {
-        dir: dataDir,
-        metaDataDir: metadataDir
-      },
-      integrity: {
-        skipTransparentlyModified: false,
-        hashRecheckThresholdMillis: 0,
-      },
-      verification: {
-        mode: "size",
-        hash: "sha256"
-      },
-      recovery: null,
+    const config: ReplicateConfig = {
+      command: "replicate",
+      sourceDir: sourceDir,
+      sourceDigestFile: sourceDigestFile,
+      destDir: destDir,
+      destDigestFile: destDigestFile,
+      subdirectory: null,
+      mirrors: [],
+      permaDelete: false,
+      hashAlgorithm: "sha256",
+      verbose: true,
       panicOnError: true,
-      verbose: true
+      dryRun: false,
+      ioTimeout: 300,
     };
 
-    let fileSentinel = new FileSentinelProgram();
+    const fileSentinel = new FileSentinelProgram();
     const executionResult = await fileSentinel.execute(config);
     await fileSentinel.terminate();
 
     expect(executionResult.success).toBe(true);
-    expect(executionResult.errorCount).toBe(0);
-    expect(executionResult.verificationPassedCount).toBe(0);
-    expect(executionResult.verificationFailedCount).toBe(1);
-  });
-
-  test("verify-and-recover should recover from mirror and verify successfully", async (): Promise<void> => {
-    const dataDir = join(global.testDataDir, "set2");
-    const metadataDir = join(global.testDataDir, "set2-metadata");
-    const mirrorDir = join(global.testDataDir, "set2-mirror1");
-    const mirrorMetadataDir = join(global.testDataDir, "set2-mirror1-metadata");
-
-    const config: Config = {
-      operation: "verify-and-recover",
-      target: {
-        dir: dataDir,
-        metaDataDir: metadataDir
-      },
-      integrity: {
-        skipTransparentlyModified: false,
-        hashRecheckThresholdMillis: 0,
-      },
-      verification: {
-        mode: "size-and-hash",
-        hash: "sha256"
-      },
-      recovery: {
-        mirrorDir: mirrorDir,
-        mirrorMetaDataDir: mirrorMetadataDir,
-        mirrorModificationTakesPrecedence: true,
-        verifyAfterRecovery: true
-      },
-      panicOnError: true,
-      verbose: true
-    };
-
-    let fileSentinel = new FileSentinelProgram();
-    const executionResult = await fileSentinel.execute(config);
-    await fileSentinel.terminate();
-
-    expect(executionResult.success).toBe(true);
-    expect(executionResult.errorCount).toBe(0);
-    expect(executionResult.recoverySuccessfulCount).toBe(1);
-    expect(executionResult.recoveryFailedCount).toBe(0);
-  }, 5 * 60 * 1000);
-
-
-  // eof
+    expect(executionResult.filesCopied).toBe(1);
+    
+    const copiedFilePath = join(destDir, largeFileName);
+    expect(existsSync(copiedFilePath)).toBe(true);
+  }, 600000); // 10 minute timeout
 });
