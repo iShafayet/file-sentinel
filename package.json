@@ -19,7 +19,7 @@
     "install-cli": "npm run build && npm install -g ."
   },
   "dependencies": {
-    "@seald-io/nedb": "^3.0.0",
+    "better-sqlite3": "^12.5.0",
     "check-disk-space": "^3.3.1",
     "commander": "^13.1.0",
     "dotenv": "^16.4.7",
@@ -29,6 +29,7 @@
     "node": ">=18.0.0"
   },
   "devDependencies": {
+    "@types/better-sqlite3": "^7.6.13",
     "@types/jest": "^29.5.14",
     "@types/node": "^17.0.35",
     "@typescript-eslint/eslint-plugin": "^5.26.0",
