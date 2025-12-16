@@ -56,6 +56,16 @@ export function createSingleTestFile(testSubDir: string, fileName: string, sizeI
   }
 }
 
+/**
+ * Gets the digest file path for a test directory
+ */
+export function getDigestFilePath(testSubDir: string): string {
+  return join(global.testDataDir, `${testSubDir}-digest.db`);
+}
 
-
-
+/**
+ * Gets the directory path for a test
+ */
+export function getTestDirPath(testSubDir: string): string {
+  return join(global.testDataDir, testSubDir);
+}
