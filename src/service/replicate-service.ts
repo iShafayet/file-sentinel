@@ -22,6 +22,7 @@ class ReplicateService {
   async execute(config: ReplicateConfig): Promise<ExecutionResult> {
     const result = createExecutionResult("replicate");
     result.filesCopied = 0;
+    result.filesDeleted = 0;
     result.filesRecovered = 0;
     result.filesRecoveryFailed = 0;
 
@@ -174,6 +175,7 @@ class ReplicateService {
                 }
 
                 destDb.deleteFile(relativePath);
+                result.filesDeleted!++;
               } catch (error) {
                 logger.logNegative(`(replicate-service)> Error deleting: ${relativePath}`);
                 addError(result, `Error deleting ${relativePath}: ${(error as Error).message}`);
