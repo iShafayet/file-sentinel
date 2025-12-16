@@ -48,6 +48,17 @@ class CryptoService {
     });
   }
 
+  /**
+   * Convenience method for v2 - hashes a file using the specified algorithm
+   */
+  async hashFile(filePath: string, algorithm: "sha256"): Promise<string> {
+    const stats = fs.statSync(filePath);
+    const noOpProgressFn = (_bytesRead: number) => {
+      // No-op progress function for now
+    };
+    return this.generateSha256HashFromFile(filePath, stats.size, noOpProgressFn);
+  }
+
 }
 
 export const cryptoService = new CryptoService();
