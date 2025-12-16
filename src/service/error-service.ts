@@ -2,14 +2,13 @@ import { logger } from "../lib/logger.js";
 import { Config } from "../model/config.js";
 
 class ErrorService {
-
   private config: Config | null = null;
 
   setConfig(config: Config): void {
     this.config = config;
   }
 
-  handleErrorDuringIteration(error: Error | unknown): void {
+  handleError(error: Error | unknown): void {
     if (!this.config) {
       throw new Error("Fatal error: Config is not set");
     }
@@ -31,4 +30,3 @@ class ErrorService {
 }
 
 export const errorService = new ErrorService();
-

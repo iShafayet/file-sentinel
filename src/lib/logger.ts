@@ -54,6 +54,12 @@ class Logger {
     console.log.apply(console, [STYLE.FgRed, timestamp, "NEG\t", ...args]);
   }
 
+  logPositive(...args: any) {
+    if (!this.switches.log) return;
+    const timestamp = new Date().toISOString();
+    console.log.apply(console, [STYLE.FgBlue, timestamp, "POS\t", ...args]);
+  }
+
   urgent(...args: any) {
     if (!this.switches.important) return;
     args.forEach((arg: any, index: number) => {
