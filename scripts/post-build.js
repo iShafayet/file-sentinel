@@ -9,5 +9,6 @@ const testEnv = join(__dirname, "../test/.env.test");
 const distTestEnv = join(__dirname, "../dist/test/.env.test");
 
 if (fs.existsSync(testEnv)) {
+  fs.mkdirSync(dirname(distTestEnv), { recursive: true });
   fs.copyFileSync(testEnv, distTestEnv);
 }

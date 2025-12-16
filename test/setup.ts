@@ -5,7 +5,7 @@ import { join } from "path";
 loadTestConfig();
 
 const setup = async () => {
-  console.log("TESTSUITE SETUP");
+  console.log("TESTSUITE SETUP - v2");
 
   if (fs.existsSync(global.testDataDir)) {
     console.log("Removing existing test data directory:", global.testDataDir);
@@ -13,17 +13,13 @@ const setup = async () => {
   }
 
   mkdirSync(global.testDataDir, { recursive: true });
+
   mkdirSync(join(global.testDataDir, "set1"), { recursive: true });
   mkdirSync(join(global.testDataDir, "set1-mirror1"), { recursive: true });
-  mkdirSync(join(global.testDataDir, "set1-metadata"), { recursive: true });
-  mkdirSync(join(global.testDataDir, "set1-mirror1-metadata"), { recursive: true });
-
   mkdirSync(join(global.testDataDir, "set2"), { recursive: true });
   mkdirSync(join(global.testDataDir, "set2-mirror1"), { recursive: true });
-  mkdirSync(join(global.testDataDir, "set2-metadata"), { recursive: true });
-  mkdirSync(join(global.testDataDir, "set2-mirror1-metadata"), { recursive: true });
 
-  console.log("TESTSUITE SETUP DONE");
+  console.log("TESTSUITE SETUP DONE - v2");
 };
 
 export default setup;

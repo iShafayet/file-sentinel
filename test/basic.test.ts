@@ -1,391 +1,319 @@
 import { join } from "path";
 import { FileSentinelProgram } from "../src/index.js";
-import { Config } from "../src/model/config.js";
-import { cpSync, statSync, utimesSync, writeFileSync } from "fs";
+import { DigestConfig, VerifyConfig, ReplicateConfig, HealConfig } from "../src/model/config.js";
+import { cpSync, writeFileSync, existsSync, unlinkSync, readFileSync } from "fs";
 import { TestFile } from "./test-types.js";
 import { sourceFiles } from "./setup-paths.js";
-import { existsSync, unlinkSync } from "fs";
-import { getMetaFilePath } from "../src/utility/meta-data-utils.js";
-import { createTestFiles } from "./test-utils.js";
+import { createTestFiles, getDigestFilePath, getTestDirPath } from "./test-utils.js";
 
-describe("Basic: SET 1", (): void => {
+describe("Basic Digest Tests - v2", (): void => {
   test("setup should work", async (): Promise<void> => {
     createTestFiles("set1");
-    cpSync(join(global.testDataDir, "set1"), join(global.testDataDir, "set1-mirror1"), { recursive: true, preserveTimestamps: true });
+    cpSync(join(global.testDataDir, "set1"), join(global.testDataDir, "set1-mirror1"), { 
+      recursive: true, 
+      preserveTimestamps: true 
+    });
   });
 
-  test("tag-new-only operation should work", async (): Promise<void> => {
-    const dataDir = join(global.testDataDir, "set1");
-    const metadataDir = join(global.testDataDir, "set1-metadata");
+  test("digest operation should create digest for new directory", async (): Promise<void> => {
+    const dataDir = getTestDirPath("set1");
+    const digestFile = getDigestFilePath("set1");
 
-    const config: Config = {
-      operation: "tag-new-only",
-      target: {
-        dir: dataDir,
-        metaDataDir: metadataDir
-      },
-      integrity: {
-        skipTransparentlyModified: true,
-        hashRecheckThresholdMillis: 0,
-      },
-      verification: {
-        mode: "size",
-        hash: "sha256"
-      },
-      recovery: null,
+    const config: DigestConfig = {
+      command: "digest",
+      inputDir: dataDir,
+      digestFile: digestFile,
+      hashAlgorithm: "sha256",
+      verbose: true,
       panicOnError: true,
-      verbose: true
+      dryRun: false,
+      ioTimeout: 30,
     };
 
-    let fileSentinel = new FileSentinelProgram();
+    const fileSentinel = new FileSentinelProgram();
     const executionResult = await fileSentinel.execute(config);
     await fileSentinel.terminate();
 
     expect(executionResult.success).toBe(true);
     expect(executionResult.errorCount).toBe(0);
-    expect(executionResult.tagAddedCount).toBe(sourceFiles.length);
+    expect(executionResult.filesAdded).toBe(sourceFiles.length);
+    expect(executionResult.filesUpdated).toBe(0);
+    expect(executionResult.filesUnchanged).toBe(0);
+    expect(existsSync(digestFile)).toBe(true);
   });
 
-  test("Tags should be created in the metadata directory", async (): Promise<void> => {
-    const dataDir = join(global.testDataDir, "set1");
-    const metadataDir = join(global.testDataDir, "set1-metadata");
-
-    const testFiles: TestFile[] = sourceFiles;
-    for (const file of testFiles) {
-      const metadataPath = getMetaFilePath(file.path, dataDir, metadataDir);
-      expect(existsSync(metadataPath)).toBe(true);
-    }
+  test("digest file should exist after first digest", async (): Promise<void> => {
+    const digestFile = getDigestFilePath("set1");
+    expect(existsSync(digestFile)).toBe(true);
   });
 
-  test("tag-new-only operation should not add tags to existing files", async (): Promise<void> => {
-    const dataDir = join(global.testDataDir, "set1");
-    const metadataDir = join(global.testDataDir, "set1-metadata");
+  test("digest operation should not add files again on second run", async (): Promise<void> => {
+    const dataDir = getTestDirPath("set1");
+    const digestFile = getDigestFilePath("set1");
 
-    const config: Config = {
-      operation: "tag-new-only",
-      target: {
-        dir: dataDir,
-        metaDataDir: metadataDir
-      },
-      integrity: {
-        skipTransparentlyModified: true,
-        hashRecheckThresholdMillis: 0,
-      },
-      verification: {
-        mode: "size",
-        hash: "sha256"
-      },
-      recovery: null,
+    const config: DigestConfig = {
+      command: "digest",
+      inputDir: dataDir,
+      digestFile: digestFile,
+      hashAlgorithm: "sha256",
+      verbose: true,
       panicOnError: true,
-      verbose: true
+      dryRun: false,
+      ioTimeout: 30,
     };
 
-    let fileSentinel = new FileSentinelProgram();
+    const fileSentinel = new FileSentinelProgram();
     const executionResult = await fileSentinel.execute(config);
     await fileSentinel.terminate();
 
     expect(executionResult.success).toBe(true);
     expect(executionResult.errorCount).toBe(0);
-    expect(executionResult.tagAddedCount).toBe(0);
+    expect(executionResult.filesAdded).toBe(0);
+    expect(executionResult.filesUnchanged).toBe(sourceFiles.length);
   });
 
-  test("Removing one metadata file should work", async (): Promise<void> => {
-    const dataDir = join(global.testDataDir, "set1");
-    const metadataDir = join(global.testDataDir, "set1-metadata");
+  test("digest should detect modified file", async (): Promise<void> => {
+    const dataDir = getTestDirPath("set1");
+    const digestFile = getDigestFilePath("set1");
 
-    // First file's metadata should not exist
+    // Modify first file
     const firstFile = sourceFiles[0];
-    const firstFileMetadata = getMetaFilePath(firstFile.path, dataDir, metadataDir);
-    expect(existsSync(firstFileMetadata)).toBe(true);
-    unlinkSync(firstFileMetadata);
-    expect(existsSync(firstFileMetadata)).toBe(false);
-  });
+    const firstFilePath = join(dataDir, firstFile.path);
+    writeFileSync(firstFilePath, "modified content");
 
-  test("tag-new-only operation should add 1 new tag", async (): Promise<void> => {
-    const dataDir = join(global.testDataDir, "set1");
-    const metadataDir = join(global.testDataDir, "set1-metadata");
-
-    const config: Config = {
-      operation: "tag-new-only",
-      target: {
-        dir: dataDir,
-        metaDataDir: metadataDir
-      },
-      integrity: {
-        skipTransparentlyModified: true,
-        hashRecheckThresholdMillis: 0,
-      },
-      verification: {
-        mode: "size",
-        hash: "sha256"
-      },
-      recovery: null,
+    const config: DigestConfig = {
+      command: "digest",
+      inputDir: dataDir,
+      digestFile: digestFile,
+      hashAlgorithm: "sha256",
+      verbose: true,
       panicOnError: true,
-      verbose: true
+      dryRun: false,
+      ioTimeout: 30,
     };
 
-    let fileSentinel = new FileSentinelProgram();
+    const fileSentinel = new FileSentinelProgram();
     const executionResult = await fileSentinel.execute(config);
     await fileSentinel.terminate();
 
     expect(executionResult.success).toBe(true);
-    expect(executionResult.errorCount).toBe(0);
-    expect(executionResult.tagAddedCount).toBe(1);
+    expect(executionResult.filesUpdated).toBe(1);
+    expect(executionResult.filesUnchanged).toBe(sourceFiles.length - 1);
   });
+});
 
-  test("tag-new-and-update-existing operation should add or update nothing", async (): Promise<void> => {
-    const dataDir = join(global.testDataDir, "set1");
-    const metadataDir = join(global.testDataDir, "set1-metadata");
+describe("Basic Verify Tests - v2", (): void => {
+  test("verify should pass for unchanged files", async (): Promise<void> => {
+    const dataDir = getTestDirPath("set1");
+    const digestFile = getDigestFilePath("set1");
 
-    const config: Config = {
-      operation: "tag-new-and-update-existing",
-      target: {
-        dir: dataDir,
-        metaDataDir: metadataDir
-      },
-      integrity: {
-        skipTransparentlyModified: true,
-        hashRecheckThresholdMillis: 0,
-      },
-      verification: {
-        mode: "size",
-        hash: "sha256"
-      },
-      recovery: null,
+    const config: VerifyConfig = {
+      command: "verify",
+      inputDir: dataDir,
+      digestFile: digestFile,
+      subdirectory: null,
+      hashAlgorithm: "sha256",
+      verbose: true,
       panicOnError: true,
-      verbose: true
+      dryRun: false,
+      ioTimeout: 30,
     };
 
-    let fileSentinel = new FileSentinelProgram();
+    const fileSentinel = new FileSentinelProgram();
     const executionResult = await fileSentinel.execute(config);
     await fileSentinel.terminate();
 
     expect(executionResult.success).toBe(true);
-    expect(executionResult.errorCount).toBe(0);
-    expect(executionResult.tagAddedCount).toBe(0);
-    expect(executionResult.tagUpdatedCount).toBe(0);
+    expect(executionResult.filesVerified).toBe(sourceFiles.length);
+    expect(executionResult.filesFailed).toBe(0);
+    expect(executionResult.filesMissing).toBe(0);
   });
 
-  test("we should be able to update a file", async (): Promise<void> => {
-    const dataDir = join(global.testDataDir, "set1");
-    const metadataDir = join(global.testDataDir, "set1-metadata");
-    const firstTestFile = join(dataDir, sourceFiles[0].path);
+  test("verify should detect corrupted file", async (): Promise<void> => {
+    const dataDir = getTestDirPath("set1");
+    const digestFile = getDigestFilePath("set1");
 
-    // Write random bytes to first test file
-    const randomBytes = Buffer.from(new Uint8Array(sourceFiles[0].sizeInBytes));
-    for (let i = 0; i < randomBytes.length; i++) {
-      randomBytes[i] = Math.floor(Math.random() * 256);
+    // Corrupt second file
+    const secondFile = sourceFiles[1];
+    const secondFilePath = join(dataDir, secondFile.path);
+    writeFileSync(secondFilePath, "corrupted");
+
+    const config: VerifyConfig = {
+      command: "verify",
+      inputDir: dataDir,
+      digestFile: digestFile,
+      subdirectory: null,
+      hashAlgorithm: "sha256",
+      verbose: false,
+      panicOnError: false,
+      dryRun: false,
+      ioTimeout: 30,
+    };
+
+    const fileSentinel = new FileSentinelProgram();
+    const executionResult = await fileSentinel.execute(config);
+    await fileSentinel.terminate();
+
+    expect(executionResult.success).toBe(false);
+    expect(executionResult.filesFailed).toBeGreaterThan(0);
+  });
+
+  test("verify should detect missing file", async (): Promise<void> => {
+    const dataDir = getTestDirPath("set1");
+    const digestFile = getDigestFilePath("set1");
+
+    // Delete third file
+    const thirdFile = sourceFiles[2];
+    const thirdFilePath = join(dataDir, thirdFile.path);
+    if (existsSync(thirdFilePath)) {
+      unlinkSync(thirdFilePath);
     }
-    writeFileSync(firstTestFile, randomBytes);
-  });
 
-  test("tag-new-and-update-existing operation should update 1 file", async (): Promise<void> => {
-    const dataDir = join(global.testDataDir, "set1");
-    const metadataDir = join(global.testDataDir, "set1-metadata");
-
-    const config: Config = {
-      operation: "tag-new-and-update-existing",
-      target: {
-        dir: dataDir,
-        metaDataDir: metadataDir
-      },
-      integrity: {
-        skipTransparentlyModified: true,
-        hashRecheckThresholdMillis: 0,
-      },
-      verification: {
-        mode: "size",
-        hash: "sha256"
-      },
-      recovery: null,
-      panicOnError: true,
-      verbose: true
+    const config: VerifyConfig = {
+      command: "verify",
+      inputDir: dataDir,
+      digestFile: digestFile,
+      subdirectory: null,
+      hashAlgorithm: "sha256",
+      verbose: false,
+      panicOnError: false,
+      dryRun: false,
+      ioTimeout: 30,
     };
 
-    let fileSentinel = new FileSentinelProgram();
+    const fileSentinel = new FileSentinelProgram();
+    const executionResult = await fileSentinel.execute(config);
+    await fileSentinel.terminate();
+
+    expect(executionResult.success).toBe(false);
+    expect(executionResult.filesMissing).toBeGreaterThan(0);
+  });
+});
+
+describe("Basic Replicate Tests - v2", (): void => {
+  test("setup replicate test", async (): Promise<void> => {
+    // Create fresh set for replication tests
+    createTestFiles("set2");
+    
+    // Create digest for source
+    const sourceDir = getTestDirPath("set2");
+    const sourceDigestFile = getDigestFilePath("set2");
+
+    const config: DigestConfig = {
+      command: "digest",
+      inputDir: sourceDir,
+      digestFile: sourceDigestFile,
+      hashAlgorithm: "sha256",
+      verbose: false,
+      panicOnError: true,
+      dryRun: false,
+      ioTimeout: 30,
+    };
+
+    const fileSentinel = new FileSentinelProgram();
     const executionResult = await fileSentinel.execute(config);
     await fileSentinel.terminate();
 
     expect(executionResult.success).toBe(true);
-    expect(executionResult.errorCount).toBe(0);
-    expect(executionResult.tagAddedCount).toBe(0);
-    expect(executionResult.tagUpdatedCount).toBe(1);
   });
 
-  test("mtime in set1 dir should match set1-mirror1 dir", async (): Promise<void> => {
-    const dataDir = join(global.testDataDir, "set1");
-    const mirrorDir = join(global.testDataDir, "set1-mirror1");
+  test("replicate should copy files to empty destination", async (): Promise<void> => {
+    const sourceDir = getTestDirPath("set2");
+    const sourceDigestFile = getDigestFilePath("set2");
+    const destDir = getTestDirPath("set2-copy");
+    const destDigestFile = getDigestFilePath("set2-copy");
 
-    const testFiles: TestFile[] = sourceFiles;
-    for (const file of testFiles) {
-      const originalPath = join(dataDir, file.path);
-      const mirrorPath = join(mirrorDir, file.path);
+    const config: ReplicateConfig = {
+      command: "replicate",
+      sourceDir: sourceDir,
+      sourceDigestFile: sourceDigestFile,
+      destDir: destDir,
+      destDigestFile: destDigestFile,
+      subdirectory: null,
+      mirrors: [],
+      permaDelete: false,
+      hashAlgorithm: "sha256",
+      verbose: true,
+      panicOnError: true,
+      dryRun: false,
+      ioTimeout: 30,
+    };
 
-      const originalStat = statSync(originalPath);
-      let mirrorStat = statSync(mirrorPath);
+    const fileSentinel = new FileSentinelProgram();
+    const executionResult = await fileSentinel.execute(config);
+    await fileSentinel.terminate();
 
-      if (originalStat.mtime.getTime() !== mirrorStat.mtime.getTime()) {
-        const mtime = originalStat.mtime;
-        const atime = originalStat.atime;
-        utimesSync(mirrorPath, atime, mtime);
-        mirrorStat = statSync(mirrorPath);
-      }
+    expect(executionResult.success).toBe(true);
+    expect(executionResult.filesCopied).toBe(sourceFiles.length);
+    expect(existsSync(destDigestFile)).toBe(true);
 
-      expect(originalStat.mtime.getTime()).toBe(mirrorStat.mtime.getTime());
+    // Verify all files exist in destination
+    for (const file of sourceFiles) {
+      const destFilePath = join(destDir, file.path);
+      expect(existsSync(destFilePath)).toBe(true);
     }
   });
+});
 
-  test("tag-new-only operation should work (mirror1)", async (): Promise<void> => {
-    const dataDir = join(global.testDataDir, "set1-mirror1");
-    const metadataDir = join(global.testDataDir, "set1-mirror1-metadata");
+describe("Basic Heal Tests - v2", (): void => {
+  test("setup heal test with mirror", async (): Promise<void> => {
+    // Create mirror with digest
+    createTestFiles("set1-mirror1");
+    const mirrorDir = getTestDirPath("set1-mirror1");
+    const mirrorDigestFile = getDigestFilePath("set1-mirror1");
 
-    const config: Config = {
-      operation: "tag-new-only",
-      target: {
-        dir: dataDir,
-        metaDataDir: metadataDir
-      },
-      integrity: {
-        skipTransparentlyModified: true,
-        hashRecheckThresholdMillis: 0,
-      },
-      verification: {
-        mode: "size",
-        hash: "sha256"
-      },
-      recovery: null,
+    const config: DigestConfig = {
+      command: "digest",
+      inputDir: mirrorDir,
+      digestFile: mirrorDigestFile,
+      hashAlgorithm: "sha256",
+      verbose: false,
       panicOnError: true,
-      verbose: true
+      dryRun: false,
+      ioTimeout: 30,
     };
 
-    let fileSentinel = new FileSentinelProgram();
+    const fileSentinel = new FileSentinelProgram();
     const executionResult = await fileSentinel.execute(config);
     await fileSentinel.terminate();
 
     expect(executionResult.success).toBe(true);
-    expect(executionResult.errorCount).toBe(0);
-    expect(executionResult.tagAddedCount).toBe(sourceFiles.length);
   });
 
-  test("we should be able to update a file", async (): Promise<void> => {
-    const dataDir = join(global.testDataDir, "set1");
-    const metadataDir = join(global.testDataDir, "set1-metadata");
-    const firstTestFile = join(dataDir, sourceFiles[0].path);
+  test("heal should recover corrupted file from mirror", async (): Promise<void> => {
+    const dataDir = getTestDirPath("set2-copy");
+    const digestFile = getDigestFilePath("set2-copy");
+    const mirrorDir = getTestDirPath("set2");
+    const mirrorDigestFile = getDigestFilePath("set2");
 
-    // Write random bytes to first test file
-    const randomBytes = Buffer.from(new Uint8Array(sourceFiles[0].sizeInBytes));
-    for (let i = 0; i < randomBytes.length; i++) {
-      randomBytes[i] = Math.floor(Math.random() * 256);
-    }
-    writeFileSync(firstTestFile, randomBytes);
-  });
+    // Corrupt a file in destination
+    const firstFile = sourceFiles[0];
+    const corruptedFilePath = join(dataDir, firstFile.path);
+    const originalContent = readFileSync(corruptedFilePath);
+    writeFileSync(corruptedFilePath, "corrupted data");
 
-  test("verify-integrity should show 9 as passed, 1 as skipped (skipTransparentlyModified: true)", async (): Promise<void> => {
-    const dataDir = join(global.testDataDir, "set1");
-    const metadataDir = join(global.testDataDir, "set1-metadata");
-
-    const config: Config = {
-      operation: "verify-integrity",
-      target: {
-        dir: dataDir,
-        metaDataDir: metadataDir
-      },
-      integrity: {
-        skipTransparentlyModified: true,
-        hashRecheckThresholdMillis: 0,
-      },
-      verification: {
-        mode: "size",
-        hash: "sha256"
-      },
-      recovery: null,
-      panicOnError: true,
-      verbose: true
+    const config: HealConfig = {
+      command: "heal",
+      inputDir: dataDir,
+      digestFile: digestFile,
+      subdirectory: null,
+      mirrors: [{ dir: mirrorDir, digestFile: mirrorDigestFile }],
+      hashAlgorithm: "sha256",
+      verbose: true,
+      panicOnError: false,
+      dryRun: false,
+      ioTimeout: 30,
     };
 
-    let fileSentinel = new FileSentinelProgram();
+    const fileSentinel = new FileSentinelProgram();
     const executionResult = await fileSentinel.execute(config);
     await fileSentinel.terminate();
 
     expect(executionResult.success).toBe(true);
-    expect(executionResult.errorCount).toBe(0);
-    expect(executionResult.verificationPassedCount).toBe(9);
-    expect(executionResult.verificationSkippedCount).toBe(1);
+    expect(executionResult.filesRecovered).toBe(1);
+    
+    // Verify file was healed
+    const healedContent = readFileSync(corruptedFilePath);
+    expect(healedContent.length).toBe(originalContent.length);
   });
-
-  test("verify-integrity should show 9 as passed, 1 as failed (skipTransparentlyModified: false)", async (): Promise<void> => {
-    const dataDir = join(global.testDataDir, "set1");
-    const metadataDir = join(global.testDataDir, "set1-metadata");
-
-    const config: Config = {
-      operation: "verify-integrity",
-      target: {
-        dir: dataDir,
-        metaDataDir: metadataDir
-      },
-      integrity: {
-        skipTransparentlyModified: false,
-        hashRecheckThresholdMillis: 0,
-      },
-      verification: {
-        mode: "size",
-        hash: "sha256"
-      },
-      recovery: null,
-      panicOnError: true,
-      verbose: true
-    };
-
-    let fileSentinel = new FileSentinelProgram();
-    const executionResult = await fileSentinel.execute(config);
-    await fileSentinel.terminate();
-
-    expect(executionResult.success).toBe(true);
-    expect(executionResult.errorCount).toBe(0);
-    expect(executionResult.verificationPassedCount).toBe(9);
-    expect(executionResult.verificationFailedCount).toBe(1);
-  });
-
-  test("verify-and-recover should recover from mirror and verify successfully", async (): Promise<void> => {
-    const dataDir = join(global.testDataDir, "set1");
-    const metadataDir = join(global.testDataDir, "set1-metadata");
-    const mirrorDir = join(global.testDataDir, "set1-mirror1");
-    const mirrorMetadataDir = join(global.testDataDir, "set1-mirror1-metadata");
-
-    const config: Config = {
-      operation: "verify-and-recover",
-      target: {
-        dir: dataDir,
-        metaDataDir: metadataDir
-      },
-      integrity: {
-        skipTransparentlyModified: false,
-        hashRecheckThresholdMillis: 0,
-      },
-      verification: {
-        mode: "size-and-hash",
-        hash: "sha256"
-      },
-      recovery: {
-        mirrorDir: mirrorDir,
-        mirrorMetaDataDir: mirrorMetadataDir,
-        mirrorModificationTakesPrecedence: true,
-        verifyAfterRecovery: true
-      },
-      panicOnError: true,
-      verbose: true
-    };
-
-    let fileSentinel = new FileSentinelProgram();
-    const executionResult = await fileSentinel.execute(config);
-    await fileSentinel.terminate();
-
-    expect(executionResult.success).toBe(true);
-    expect(executionResult.errorCount).toBe(0);
-    expect(executionResult.verificationPassedCount).toBe(9);
-    expect(executionResult.recoverySuccessfulCount).toBe(1);
-    expect(executionResult.recoveryFailedCount).toBe(0);
-  });
-
-  // eof
 });
