@@ -26,8 +26,8 @@ export function parseArgs(argv?: string[]): Config {
     .command("digest")
     .description("Create or update digest of a directory")
     .requiredOption(
-      "-i, --input <dir:digest>",
-      "Input directory and digest file (format: /path/to/dir:/path/to/digest.db)"
+      "-i, --input <dir::digest>",
+      "Input directory and digest file (format: /path/to/dir::/path/to/digest.db)"
     )
     .option("-a, --hash-algorithm <algo>", "Hash algorithm", "sha256")
     .option("--verbose", "Verbose output", false)
@@ -54,8 +54,8 @@ export function parseArgs(argv?: string[]): Config {
     .command("verify")
     .description("Verify directory against digest")
     .requiredOption(
-      "-i, --input <dir:digest>",
-      "Input directory and digest file (format: /path/to/dir:/path/to/digest.db)"
+      "-i, --input <dir::digest>",
+      "Input directory and digest file (format: /path/to/dir::/path/to/digest.db)"
     )
     .option("-s, --subdirectory <path>", "Subdirectory to verify")
     .option("-a, --hash-algorithm <algo>", "Hash algorithm", "sha256")
@@ -84,17 +84,17 @@ export function parseArgs(argv?: string[]): Config {
     .command("replicate")
     .description("Replicate directory to destination")
     .requiredOption(
-      "-i, --input <dir:digest>",
-      "Source directory and digest file (format: /path/to/dir:/path/to/digest.db)"
+      "-i, --input <dir::digest>",
+      "Source directory and digest file (format: /path/to/dir::/path/to/digest.db)"
     )
     .requiredOption(
-      "-o, --output <dir:digest>",
-      "Destination directory and digest file (format: /path/to/dir:/path/to/digest.db)"
+      "-o, --output <dir::digest>",
+      "Destination directory and digest file (format: /path/to/dir::/path/to/digest.db)"
     )
     .option("-s, --subdirectory <path>", "Subdirectory to replicate")
     .option(
-      "--mirror <dir:digest>",
-      "Mirror source (can be repeated, format: /path/to/dir:/path/to/digest.db)",
+      "--mirror <dir::digest>",
+      "Mirror source (can be repeated, format: /path/to/dir::/path/to/digest.db)",
       collectMirrors,
       []
     )
@@ -130,13 +130,13 @@ export function parseArgs(argv?: string[]): Config {
     .command("heal")
     .description("Heal directory from mirrors")
     .requiredOption(
-      "-i, --input <dir:digest>",
-      "Directory and digest file to heal (format: /path/to/dir:/path/to/digest.db)"
+      "-i, --input <dir::digest>",
+      "Directory and digest file to heal (format: /path/to/dir::/path/to/digest.db)"
     )
     .option("-s, --subdirectory <path>", "Subdirectory to heal")
     .requiredOption(
-      "--mirror <dir:digest>",
-      "Mirror source (can be repeated, at least one required, format: /path/to/dir:/path/to/digest.db)",
+      "--mirror <dir::digest>",
+      "Mirror source (can be repeated, at least one required, format: /path/to/dir::/path/to/digest.db)",
       collectMirrors,
       []
     )

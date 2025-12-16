@@ -1,6 +1,7 @@
 import { Config } from "../model/config.js";
 import { fileService } from "./file-service.js";
 import fs from "fs";
+import path from "path";
 
 /**
  * Service for validating configuration and paths
@@ -95,8 +96,8 @@ class SanityService {
    * (the digest file itself may not exist yet)
    */
   private verifyDigestFileDirectory(digestFilePath: string, label: string): void {
-    const dirPath = digestFilePath.substring(0, digestFilePath.lastIndexOf("/"));
-    if (dirPath && !fileService.verifyDirectoryExists(dirPath)) {
+    const dirPath = path.dirname(digestFilePath);
+    if (dirPath && dirPath !== "." && !fileService.verifyDirectoryExists(dirPath)) {
       throw new Error(`Directory for ${label} does not exist: ${dirPath}`);
     }
   }
