@@ -1,0 +1,41 @@
+# Source files (we ship compiled dist/)
+src/
+test/
+dist/test/
+*.test.ts
+*.test.js
+
+# Config files
+.vscode/
+.cursor/
+tsconfig.json
+jest.config.mjs
+nodemon.json
+.eslintrc*
+.prettierrc*
+.env*
+!.env.test.example
+
+# Build artifacts
+node_modules/
+.local/
+*.log
+npm-debug.log*
+coverage/
+.nyc_output/
+
+# Git files
+.git/
+.gitignore
+.gitattributes
+
+# CI/CD
+.github/
+.gitlab-ci.yml
+.travis.yml
+
+# Misc
+scripts/
+*.tgz
+.DS_Store
+Thumbs.db

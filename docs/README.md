@@ -2,6 +2,8 @@
 
 Welcome to the File Sentinel documentation. File Sentinel is a command-line tool for monitoring file integrity, creating backups, and recovering corrupted files.
 
+**Package**: [file-sentinel on npm](https://www.npmjs.com/package/file-sentinel)
+
 ## Table of Contents
 
 1. [Getting Started](getting-started.md) - Installation and basic setup
@@ -13,11 +15,13 @@ Welcome to the File Sentinel documentation. File Sentinel is a command-line tool
 ## Quick Links
 
 ### For New Users
+
 - [Installation Guide](getting-started.md#installation)
 - [Your First Digest](getting-started.md#creating-your-first-digest)
 - [Basic Workflow](workflows.md#basic-backup-workflow)
 
 ### For Advanced Users
+
 - [Mirror Configuration](workflows.md#setting-up-mirrors)
 - [Automated Healing](workflows.md#automated-healing-with-cron)
 - [Performance Optimization](troubleshooting.md#performance-considerations)
@@ -53,4 +57,3 @@ If you encounter issues or have questions:
 ## License
 
 File Sentinel is licensed under GPL-3.0. See the LICENSE file for details.
-
