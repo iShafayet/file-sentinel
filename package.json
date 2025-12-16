@@ -1,17 +1,44 @@
 {
   "name": "file-sentinel",
   "version": "2.0.0",
-  "description": "File integrity daemon with automated replica and recovery.",
+  "description": "File integrity verification, replication, and recovery tool.",
   "author": "Sayem Shafayet <ishafayet@gmail.com>",
   "license": "GPL-3.0",
-  "private": true,
+  "private": false,
   "type": "module",
-  "main": "src/start.ts",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/iShafayet/file-sentinel.git"
+  },
+  "bugs": {
+    "url": "https://github.com/iShafayet/file-sentinel/issues"
+  },
+  "homepage": "https://github.com/iShafayet/file-sentinel#readme",
+  "keywords": [
+    "file-integrity",
+    "backup",
+    "verification",
+    "checksum",
+    "sha256",
+    "data-integrity",
+    "corruption-detection",
+    "file-recovery",
+    "backup-tool",
+    "cli"
+  ],
+  "files": [
+    "dist/src/",
+    "docs/",
+    "README.md",
+    "LICENSE"
+  ],
+  "main": "dist/src/start.js",
   "bin": {
     "file-sentinel": "dist/src/start.js"
   },
   "scripts": {
     "build": "npx tsc && node scripts/post-build.js",
+    "prepublishOnly": "npm run build",
     "lint": "eslint .",
     "start": "node dist/src/start.js",
     "start-compiled": "npm run build && npm start",

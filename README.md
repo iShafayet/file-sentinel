@@ -1,5 +1,10 @@
 # File Sentinel
 
+[![npm version](https://img.shields.io/npm/v/file-sentinel.svg)](https://www.npmjs.com/package/file-sentinel)
+[![npm downloads](https://img.shields.io/npm/dm/file-sentinel.svg)](https://www.npmjs.com/package/file-sentinel)
+[![license](https://img.shields.io/npm/l/file-sentinel.svg)](https://github.com/iShafayet/file-sentinel/blob/main/LICENSE)
+[![Node.js version](https://img.shields.io/node/v/file-sentinel.svg)](https://nodejs.org)
+
 A command-line tool for monitoring file integrity, creating verified backups, and recovering corrupted files using cryptographic hashing.
 
 ## Overview
@@ -199,13 +204,19 @@ The double colon (`::`) separates the directory from its digest file. This works
 C:\Users\YourName\Documents::C:\Users\YourName\digest.db
 ```
 
+## Links
+
+- **npm Package**: [npmjs.com/package/file-sentinel](https://www.npmjs.com/package/file-sentinel)
+- **GitHub Repository**: [github.com/iShafayet/file-sentinel](https://github.com/iShafayet/file-sentinel)
+- **Documentation**: See the `docs/` directory
+
 ## Support
 
 For issues, questions, or contributions:
 
 - Read the [Troubleshooting Guide](docs/troubleshooting.md)
 - Check the [Command Reference](docs/command-reference.md)
-- Open an issue on GitHub
+- Open an issue on [GitHub](https://github.com/iShafayet/file-sentinel/issues)
 
 ## License
 

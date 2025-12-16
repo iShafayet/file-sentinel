@@ -16,9 +16,9 @@ If you need to install or upgrade Node.js, visit [nodejs.org](https://nodejs.org
 
 ### Installing File Sentinel
 
-#### Option 1: Global Installation (Recommended)
+#### Option 1: Install from npm (Recommended)
 
-Install File Sentinel globally to use it anywhere on your system:
+Install File Sentinel globally from npm to use it anywhere on your system:
 
 ```bash
 npm install -g file-sentinel
@@ -30,9 +30,11 @@ After installation, verify it works:
 file-sentinel --help
 ```
 
-#### Option 2: Local Installation
+You should see the help text with available commands.
 
-Clone the repository and install locally:
+#### Option 2: Install from Source
+
+If you want to contribute or customize File Sentinel, you can install from source:
 
 ```bash
 git clone https://github.com/iShafayet/file-sentinel.git
