@@ -1,26 +1,26 @@
 #!/usr/bin/env node
 
-import { Config } from "./model/config.js";
-import {
-  extractProcessParams,
-  determineVerbosity,
-  lookupAndLoadConfigAsync,
-} from "./utility/startup-utils.js";
+import { parseArgs } from "./utility/cli-parser.js";
 import { FileSentinelProgram } from "./index.js";
-import { normalizePathsInConfig } from "./utility/config-utils.js";
 import { logger } from "./lib/logger.js";
 
-let commandLineParams = extractProcessParams();
-const initialVerbosity = determineVerbosity(commandLineParams);
-logger.init(initialVerbosity);
+// Parse command line arguments
+const config = parseArgs();
 
-logger.debug("STARTUP Application parameters: ", commandLineParams);
+// Initialize logger
+logger.init(config.verbose);
 
-let config: Config = lookupAndLoadConfigAsync(commandLineParams);
-normalizePathsInConfig(config);
+logger.debug("(start)> Configuration:", config);
 
-logger.setVerbosity(config.verbose);
-
-logger.debug("STARTUP Config: ", config);
-
-new FileSentinelProgram().execute(config);
+// Execute program and handle exit code
+new FileSentinelProgram()
+  .execute(config)
+  .then((result) => {
+    if (!result.success) {
+      process.exit(1);
+    }
+  })
+  .catch((error) => {
+    logger.error(error);
+    process.exit(1);
+  });
