@@ -1,60 +1,216 @@
-# file-sentinel
+# File Sentinel
 
-File integrity daemon with automated replica and recovery.
+A command-line tool for monitoring file integrity, creating verified backups, and recovering corrupted files using cryptographic hashing.
 
-## To run (directly on development machine)
+## Overview
 
-1. Have nodejs 18 (LTS) or newer installed.
-2. Then run `npm i`
-3. Run `npm run start-compiled`.
+File Sentinel helps you protect your data by:
 
-## To run integration tests locally (directly on development machine)
+- **Detecting corruption** - Verify files haven't been modified or damaged using SHA-256 hashes
+- **Creating backups** - Replicate directories with automatic integrity verification
+- **Recovering files** - Automatically restore corrupted files from backup copies (mirrors)
+- **Tracking changes** - Maintain a database (digest) of file states over time
 
-Run `npm run test`
+## Quick Start
 
-## To install as a cli tool
+### Installation
 
-Run `npm run install-cli`
+Install globally using npm:
 
-## Command line usage
+```bash
+npm install -g file-sentinel
+```
+
+Verify installation:
+
+```bash
+file-sentinel --help
+```
+
+### Basic Usage
+
+**Create a digest** (inventory of your files):
+
+```bash
+file-sentinel digest -i ~/Documents::~/Documents/digest.db
+```
+
+**Verify integrity**:
+
+```bash
+file-sentinel verify -i ~/Documents::~/Documents/digest.db
+```
+
+**Create a backup**:
+
+```bash
+file-sentinel replicate \
+  -i ~/Documents::~/Documents/digest.db \
+  -o /backup/Documents::/backup/Documents/digest.db
+```
+
+**Recover corrupted files**:
+
+```bash
+file-sentinel heal \
+  -i ~/Documents::~/Documents/digest.db \
+  --mirror /backup/Documents::/backup/Documents/digest.db
+```
+
+## Core Commands
+
+File Sentinel provides four main commands:
+
+- **digest** - Create or update a file inventory with cryptographic hashes
+- **verify** - Check files against their recorded state to detect corruption
+- **replicate** - Copy files to another location with integrity verification
+- **heal** - Restore corrupted or missing files from backup mirrors
+
+## Key Features
+
+- **SQLite-based digests** - Fast, reliable database for storing file metadata
+- **SHA-256 hashing** - Industry-standard cryptographic verification
+- **Mirror support** - Multiple backup locations for redundancy
+- **Recycle bin** - Soft deletion with recovery option
+- **Subdirectory filtering** - Process only specific folders
+- **Progress reporting** - Real-time feedback for long operations
+- **Cross-platform** - Works on Linux, macOS, and Windows
+- **Dry-run mode** - Preview changes before execution
+
+## Documentation
+
+Complete documentation is available in the `docs/` directory:
+
+- [Getting Started Guide](docs/getting-started.md) - Installation and first steps
+- [Core Concepts](docs/core-concepts.md) - Understanding digests, hashes, and mirrors
+- [Command Reference](docs/command-reference.md) - Detailed command documentation
+- [Common Workflows](docs/workflows.md) - Real-world usage examples
+- [Troubleshooting](docs/troubleshooting.md) - Solutions to common problems
+
+## Requirements
+
+- Node.js 18.0.0 or higher
+- Operating System: Linux, macOS, or Windows
+- Basic command-line familiarity
+
+## Development
+
+### Setup
+
+Clone and install dependencies:
+
+```bash
+git clone https://github.com/iShafayet/file-sentinel.git
+cd file-sentinel
+npm install
+```
+
+### Build
+
+Compile TypeScript to JavaScript:
 
 ```bash
 npm run build
-node dist/start.js \
-  --operation verify-and-recover \
-  --target-dir "/example/target" \
-  --target-metadata-dir "/example/target-meta" \
-  --skip-transparently-modified true \
-  --hash-recheck-threshold 0 \
-  --verification-mode size-and-hash \
-  --mirror-dir "/example/mirror" \
-  --mirror-metadata-dir "/example/mirror-meta" \
-  --mirror-precedence true \
-  --verify-after-recovery true \
-  --panic-on-error true \
-  --verbose true
 ```
 
-Or, if you installed the cli tool, you can run:
+### Run Locally
+
+Execute the compiled version:
 
 ```bash
-file-sentinel \
-  --operation verify-and-recover \
-  --target-dir "/example/target" \
-  --target-metadata-dir "/example/target-meta" \
-  --skip-transparently-modified true \
-  --hash-recheck-threshold 0 \
-  --verification-mode size-and-hash \
-  --mirror-dir "/example/mirror" \
-  --mirror-metadata-dir "/example/mirror-meta" \
-  --mirror-precedence true \
-  --verify-after-recovery true \
-  --panic-on-error true \
-  --verbose true
+npm run start-compiled
 ```
 
-## Author and License
+Or run directly with ts-node:
 
-License: [GNU General Public License v3.0](LICENSE)
+```bash
+node dist/src/start.js <command> [options]
+```
 
-2025 © [Sayem Shafayet](https://ishafayet.me)
+### Install as CLI Tool
+
+Install the built version as a global command:
+
+```bash
+npm run install-cli
+```
+
+### Testing
+
+Run the integration test suite:
+
+```bash
+npm test
+```
+
+## Example Workflow
+
+Here's a complete workflow for protecting important documents:
+
+```bash
+# 1. Create initial digest
+file-sentinel digest -i ~/Documents::~/Documents/digest.db
+
+# 2. Create a backup
+file-sentinel replicate \
+  -i ~/Documents::~/Documents/digest.db \
+  -o /backup/Documents::/backup/Documents/digest.db
+
+# 3. Verify integrity periodically
+file-sentinel verify -i ~/Documents::~/Documents/digest.db
+
+# 4. If corruption is detected, heal from backup
+file-sentinel heal \
+  -i ~/Documents::~/Documents/digest.db \
+  --mirror /backup/Documents::/backup/Documents/digest.db
+
+# 5. After making changes, update digest
+file-sentinel digest -i ~/Documents::~/Documents/digest.db
+
+# 6. Sync changes to backup
+file-sentinel replicate \
+  -i ~/Documents::~/Documents/digest.db \
+  -o /backup/Documents::/backup/Documents/digest.db
+```
+
+## Use Cases
+
+File Sentinel is useful for:
+
+- Protecting important documents and files from corruption
+- Creating and maintaining verified backups
+- Detecting silent data corruption (bit rot)
+- Archiving photos, videos, and media collections
+- Maintaining data integrity for work files
+- Synchronizing directories across multiple locations
+- Recovering from hardware failures or accidental modifications
+
+## Path Format
+
+File Sentinel uses a special format to specify directories and their digest files:
+
+```
+/path/to/directory::/path/to/digest.db
+```
+
+The double colon (`::`) separates the directory from its digest file. This works on all platforms, including Windows:
+
+```
+C:\Users\YourName\Documents::C:\Users\YourName\digest.db
+```
+
+## Support
+
+For issues, questions, or contributions:
+
+- Read the [Troubleshooting Guide](docs/troubleshooting.md)
+- Check the [Command Reference](docs/command-reference.md)
+- Open an issue on GitHub
+
+## License
+
+File Sentinel is licensed under the GNU General Public License v3.0. See [LICENSE](LICENSE) for details.
+
+## Author
+
+2025 © [Sayem Shafayet](https://sayemshafayet.com)

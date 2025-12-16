@@ -1,6 +1,6 @@
 {
   "name": "file-sentinel",
-  "version": "0.0.1",
+  "version": "2.0.0",
   "description": "File integrity daemon with automated replica and recovery.",
   "author": "Sayem Shafayet <ishafayet@gmail.com>",
   "license": "GPL-3.0",
