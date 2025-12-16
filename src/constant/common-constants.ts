@@ -1,10 +1,14 @@
 const constants = {
-  CLIENT_IDENTFIER: "fs-official-1",
-  META_FILE_PREFIX: ".__fs__",
-  META_FILE_SUFFIX: ".json",
+  CLIENT_IDENTIFIER: "fs-official-2",
   PROGRESS_LOG_INTERVAL_MS: 5 * 1000,
   UX_PROGRESS_LOG_INTERVAL_MS: 10 * 1000,
   SYNC_HASHFILE_SIZE_THRESHOLD_BYTES: 10_000_000,
+
+  // New constants for v2
+  RECYCLE_DIR_NAME: ".fs-recycle",
+  DEFAULT_IO_TIMEOUT_SECONDS: 30,
+  DEFAULT_HASH_ALGORITHM: "sha256",
+
   crypto: {
     HASH_ALGO_SHA256: "sha256",
     SALT_BYTE_LEN: 128,
