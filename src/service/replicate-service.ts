@@ -4,6 +4,7 @@ import { ExecutionResult, createExecutionResult, completeExecution, addError } f
 import { DatabaseService } from "./database-service.js";
 import { discoveryService } from "./discovery-service.js";
 import { cryptoService } from "./crypto-service.js";
+import { fileService } from "./file-service.js";
 import { displayService } from "./display-service.js";
 import { errorService } from "./error-service.js";
 import { RecycleUtility } from "../utility/recycle-utility.js";
@@ -321,8 +322,11 @@ class ReplicateService {
           const destDir = path.dirname(destPath);
           await fsPromises.mkdir(destDir, { recursive: true });
 
-          // Copy file
-          await fsPromises.copyFile(sourcePath, destPath);
+          // Copy file with progress
+          await fileService.copyLargeFile(sourcePath, destPath, (bytesRead, totalBytes) => {
+            const percentage = Math.floor((bytesRead / totalBytes) * 100);
+            displayService.updateFileProgress(percentage, 100, `[Copy] ${relativePath}`);
+          });
 
           // Verify copy
           const copiedHash = await cryptoService.hashFile(destPath, config.hashAlgorithm, (bytesRead, total) => {
