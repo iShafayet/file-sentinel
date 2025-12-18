@@ -3,7 +3,7 @@ import { HealConfig } from "../model/config.js";
 import { ExecutionResult, createExecutionResult, completeExecution, addError } from "../model/execution-results.js";
 import { DatabaseService } from "./database-service.js";
 import { cryptoService } from "./crypto-service.js";
-import { uxService } from "./ux-service.js";
+import { displayService } from "./display-service.js";
 import { errorService } from "./error-service.js";
 import { joinPath } from "../utility/path-utils.js";
 import path from "path";
@@ -23,9 +23,13 @@ class HealService {
     result.filesRecovered = 0;
     result.filesRecoveryFailed = 0;
 
-    logger.logPositive("=".repeat(80));
-    logger.logPositive("Starting Heal Operation");
-    logger.logPositive("=".repeat(80));
+    // Enable buffering and start display
+    logger.enableBuffering();
+    displayService.start("heal", config.inputDir);
+
+    logger.log("=".repeat(80));
+    logger.log("Starting Heal Operation");
+    logger.log("=".repeat(80));
     logger.log(`Input Directory: ${config.inputDir}`);
     logger.log(`Digest File: ${config.digestFile}`);
     logger.log(`Subdirectory: ${config.subdirectory || "(entire directory)"}`);
@@ -65,6 +69,11 @@ class HealService {
         const digestFile = digestFiles[i];
         const relativePath = digestFile.relative_path;
 
+        // Update progress display
+        displayService.updateTaskProgress(i, digestFiles.length, "Healing files");
+        displayService.updateFileProgress(0, 100, relativePath);
+        displayService.updateStats(result);
+
         if (config.verbose && i % 100 === 0) {
           logger.log(`(heal-service)> Progress: ${i}/${digestFiles.length} files processed`);
         }
@@ -83,14 +92,10 @@ class HealService {
           if (healResult.healed) {
             result.filesRecovered!++;
             result.totalBytesProcessed += digestFile.size;
-            if (config.verbose) {
-              logger.logPositive(`(heal-service)> Healed: ${relativePath}`);
-            }
+            logger.debug(`(heal-service)> Healed: ${relativePath}`);
           } else if (healResult.verified) {
             result.filesVerified!++;
-            if (config.verbose) {
-              logger.debug(`(heal-service)> Verified: ${relativePath}`);
-            }
+            logger.debug(`(heal-service)> Verified: ${relativePath}`);
           } else {
             result.filesRecoveryFailed!++;
             addError(result, `Failed to heal ${relativePath}: ${healResult.reason}`);
@@ -101,6 +106,7 @@ class HealService {
             }
           }
 
+          displayService.updateFileProgress(100, 100, relativePath);
           result.totalFilesProcessed++;
         } catch (error) {
           logger.logNegative(`(heal-service)> Error healing file: ${relativePath}`);
@@ -120,13 +126,21 @@ class HealService {
         db.completeOperation(operationId, result.success, result.errorCount);
       }
 
+      // Complete progress display
+      displayService.updateTaskProgress(digestFiles.length, digestFiles.length, "Complete");
+      displayService.updateStats(result);
+      displayService.stop();
+
       // Report results
-      uxService.logExecutionResult(result, config.verbose);
+      displayService.logExecutionResult(result, config.verbose);
     } catch (error) {
       logger.logNegative("(heal-service)> Heal operation failed");
       addError(result, `Heal failed: ${(error as Error).message}`);
       completeExecution(result, false);
       errorService.handleError(error);
+
+      // Stop display on error
+      displayService.stop();
 
       if (db.isOpen() && !config.dryRun && operationId !== null) {
         db.completeOperation(operationId, false, result.errorCount);
@@ -217,7 +231,7 @@ class HealService {
           }
         }
 
-        logger.logPositive(`(heal-service)> Successfully healed from mirror: ${mirror.dir}`);
+        logger.debug(`(heal-service)> Successfully healed from mirror: ${mirror.dir}`);
         return { verified: false, healed: true };
       } catch (error) {
         logger.logNegative(`(heal-service)> Error copying from mirror ${mirrorPath}: ${(error as Error).message}`);
