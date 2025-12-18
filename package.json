@@ -46,8 +46,10 @@
     "install-cli": "npm run build && npm install -g ."
   },
   "dependencies": {
+    "@types/cli-progress": "^3.11.6",
     "better-sqlite3": "^12.5.0",
     "check-disk-space": "^3.3.1",
+    "cli-progress": "^3.12.0",
     "commander": "^13.1.0",
     "dotenv": "^16.4.7",
     "joi": "^17.6.0"
