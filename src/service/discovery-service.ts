@@ -20,9 +20,15 @@ class DiscoveryService {
    * @param rootDir - The root directory to scan
    * @param subdirectory - Optional subdirectory to limit the scan
    * @param executionResult - Optional execution result to track errors
+   * @param progressCallback - Optional callback for progress updates (fileCount, currentDir)
    * @returns Array of relative paths from rootDir
    */
-  public discoverFiles(rootDir: string, subdirectory?: string | null, executionResult?: ExecutionResult): string[] {
+  public async discoverFiles(
+    rootDir: string,
+    subdirectory?: string | null,
+    executionResult?: ExecutionResult,
+    progressCallback?: (fileCount: number, currentDir: string) => void
+  ): Promise<string[]> {
     const fileList: string[] = [];
     const startDir = subdirectory ? path.join(rootDir, subdirectory) : rootDir;
 
@@ -32,7 +38,7 @@ class DiscoveryService {
       return fileList;
     }
 
-    this.discoverFilesRecursive(startDir, rootDir, fileList, executionResult);
+    await this.discoverFilesRecursive(startDir, rootDir, fileList, executionResult, progressCallback);
 
     logger.debug(
       `(discovery-service)> Discovered ${fileList.length} files in ${rootDir}${subdirectory ? "/" + subdirectory : ""}`
@@ -44,12 +50,13 @@ class DiscoveryService {
   /**
    * Recursive helper to discover files
    */
-  private discoverFilesRecursive(
+  private async discoverFilesRecursive(
     currentDir: string,
     rootDir: string,
     fileList: string[],
-    executionResult?: ExecutionResult
-  ): void {
+    executionResult?: ExecutionResult,
+    progressCallback?: (fileCount: number, currentDir: string) => void
+  ): Promise<void> {
     let childList: string[];
 
     try {
@@ -93,11 +100,19 @@ class DiscoveryService {
         }
 
         if (childStat.isDirectory()) {
+          // Report progress when entering a new directory
+          if (progressCallback) {
+            progressCallback(fileList.length, childPath);
+          }
           // Recurse into directory
-          this.discoverFilesRecursive(childPath, rootDir, fileList, executionResult);
+          await this.discoverFilesRecursive(childPath, rootDir, fileList, executionResult, progressCallback);
         } else if (childStat.isFile()) {
           // Add file to list
           fileList.push(relativePath);
+          // Report progress every 50 files to avoid too many updates
+          if (progressCallback && fileList.length % 50 === 0) {
+            progressCallback(fileList.length, currentDir);
+          }
         }
       } catch (error) {
         logger.logNegative(`(discovery-service)> Error processing: ${child}`);

@@ -48,9 +48,18 @@ class DigestService {
         logger.log("(digest-service)> Database opened successfully");
       }
 
-      // Discover all files
+      // Discover all files with progress
       logger.log("(digest-service)> Discovering files...");
-      const discoveredFiles = discoveryService.discoverFiles(config.inputDir, null, result);
+      displayService.startDiscovery();
+      const discoveredFiles = await discoveryService.discoverFiles(
+        config.inputDir,
+        null,
+        result,
+        (fileCount, currentDir) => {
+          displayService.updateDiscoveryProgress(fileCount, currentDir);
+        }
+      );
+      displayService.stopDiscovery();
       logger.log(`(digest-service)> Discovered ${discoveredFiles.length} files`);
 
       // Get existing files from database
