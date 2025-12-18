@@ -54,6 +54,7 @@ sudo npm install -g file-sentinel
 ```
 
 **On Windows**:
+
 - Run Command Prompt or PowerShell as Administrator
 - Then run: `npm install -g file-sentinel`
 
@@ -76,6 +77,7 @@ npm run build
 **Problem**: "Database is not open" or "failed to open database".
 
 **Causes**:
+
 1. Digest file is corrupted
 2. Insufficient permissions
 3. Disk is full
@@ -83,16 +85,19 @@ npm run build
 **Solutions**:
 
 Check file permissions:
+
 ```bash
 ls -l path/to/digest.db
 ```
 
 Check disk space:
+
 ```bash
 df -h
 ```
 
 If digest is corrupted, recreate it:
+
 ```bash
 rm path/to/digest.db
 file-sentinel digest -i /path/to/dir::/path/to/digest.db
@@ -105,11 +110,13 @@ file-sentinel digest -i /path/to/dir::/path/to/digest.db
 **Cause**: Using single colon `:` instead of double colon `::`.
 
 **Wrong**:
+
 ```bash
 file-sentinel digest -i ~/Documents:/digest.db
 ```
 
 **Correct**:
+
 ```bash
 file-sentinel digest -i ~/Documents::/digest.db
 ```
@@ -119,6 +126,7 @@ file-sentinel digest -i ~/Documents::/digest.db
 **Problem**: Errors reading specific files.
 
 **Causes**:
+
 1. File locked by another program
 2. Insufficient permissions
 3. File on unmounted drive
@@ -127,11 +135,13 @@ file-sentinel digest -i ~/Documents::/digest.db
 **Solutions**:
 
 Check file permissions:
+
 ```bash
 ls -l /path/to/problem-file
 ```
 
 Close programs using the file:
+
 ```bash
 # On Linux
 lsof /path/to/problem-file
@@ -144,11 +154,13 @@ lsof /path/to/problem-file
 ```
 
 Increase timeout:
+
 ```bash
 file-sentinel digest -i ~/dir::~/digest.db -t 120
 ```
 
 Skip problematic files (continue on error):
+
 ```bash
 # Don't use --panic-on-error
 file-sentinel digest -i ~/dir::~/digest.db
@@ -161,6 +173,7 @@ file-sentinel digest -i ~/dir::~/digest.db
 **Problem**: Digest creation takes extremely long.
 
 **Causes**:
+
 1. Working with network drives
 2. Many small files
 3. A few very large files
@@ -169,22 +182,26 @@ file-sentinel digest -i ~/dir::~/digest.db
 **Solutions**:
 
 Use verbose mode to see what's being processed:
+
 ```bash
 file-sentinel digest -i ~/dir::~/digest.db --verbose
 ```
 
 Store digest locally even if data is remote:
+
 ```bash
 # Data on network, digest local
 file-sentinel digest -i /mnt/network-drive::~/local-digest.db
 ```
 
 For very large files, be patient. Progress is shown every 10 seconds:
+
 ```
 (crypto-service)> Hashing "large-file.iso": 2 GB/8 GB (25%)
 ```
 
 Consider processing subdirectories separately:
+
 ```bash
 file-sentinel digest -i ~/large-dir::~/digest.db -s subdir1
 file-sentinel digest -i ~/large-dir::~/digest.db -s subdir2
@@ -197,6 +214,7 @@ file-sentinel digest -i ~/large-dir::~/digest.db -s subdir2
 **Explanation**: File Sentinel uses streaming for large files (>10 MB) to minimize memory usage. Memory usage should be modest even for large files.
 
 If experiencing issues:
+
 - Close other applications
 - Process smaller subdirectories
 - Check for other system issues
@@ -206,6 +224,7 @@ If experiencing issues:
 **Problem**: Running out of disk space during operations.
 
 **Causes**:
+
 1. Recycle bin accumulating deleted files
 2. Multiple digest files
 3. Log files growing
@@ -213,11 +232,13 @@ If experiencing issues:
 **Solutions**:
 
 Empty recycle bin:
+
 ```bash
 rm -rf /path/to/directory/.fs-recycle/*
 ```
 
 Use permanent delete:
+
 ```bash
 file-sentinel replicate \
   -i ~/source::~/source.db \
@@ -226,11 +247,13 @@ file-sentinel replicate \
 ```
 
 Check digest file sizes:
+
 ```bash
 ls -lh *digest.db
 ```
 
 Recreate large digest files:
+
 ```bash
 rm old-digest.db
 file-sentinel digest -i ~/dir::~/new-digest.db
@@ -245,6 +268,7 @@ file-sentinel digest -i ~/dir::~/new-digest.db
 **This means**: Files on disk don't match their stored hashes.
 
 **Possible causes**:
+
 1. **File corruption** - Hardware issues, bit rot
 2. **Intentional changes** - You or a program modified the files
 3. **Outdated digest** - Digest wasn't updated after changes
@@ -252,12 +276,14 @@ file-sentinel digest -i ~/dir::~/new-digest.db
 **What to do**:
 
 **If files were intentionally changed**:
+
 ```bash
 # Update the digest
 file-sentinel digest -i ~/dir::~/digest.db
 ```
 
 **If files are corrupted**:
+
 ```bash
 # Heal from backup
 file-sentinel heal \
@@ -266,6 +292,7 @@ file-sentinel heal \
 ```
 
 **If unsure**:
+
 ```bash
 # Check the file manually
 file /path/to/failed-file
@@ -279,6 +306,7 @@ cat /path/to/failed-file  # if it's text
 **Cause**: Digest is outdated.
 
 **Solution**:
+
 ```bash
 # Update the digest to include new files
 file-sentinel digest -i ~/dir::~/digest.db
@@ -289,6 +317,7 @@ file-sentinel digest -i ~/dir::~/digest.db
 **Problem**: Verify reports missing files (in digest but not on disk).
 
 **Possible causes**:
+
 1. Files were deleted
 2. Directory was moved
 3. Drive not mounted
@@ -296,6 +325,7 @@ file-sentinel digest -i ~/dir::~/digest.db
 **Solutions**:
 
 If files are truly gone and you have backups:
+
 ```bash
 # Recover from backup
 file-sentinel heal \
@@ -304,12 +334,14 @@ file-sentinel heal \
 ```
 
 If files were intentionally deleted:
+
 ```bash
 # Update digest to remove entries
 file-sentinel digest -i ~/dir::~/digest.db
 ```
 
 If directory was moved:
+
 ```bash
 # Create digest at new location
 file-sentinel digest -i /new/location::/new/location/digest.db
@@ -322,6 +354,7 @@ file-sentinel digest -i /new/location::/new/location/digest.db
 **Problem**: Replicate command shows "Files Copied: 0" but you expect changes.
 
 **Possible causes**:
+
 1. Source digest is outdated
 2. Files haven't actually changed
 3. Destination already up to date
@@ -329,11 +362,13 @@ file-sentinel digest -i /new/location::/new/location/digest.db
 **Solutions**:
 
 Update source digest first:
+
 ```bash
 file-sentinel digest -i ~/source::~/source.db
 ```
 
 Then replicate:
+
 ```bash
 file-sentinel replicate \
   -i ~/source::~/source.db \
@@ -341,6 +376,7 @@ file-sentinel replicate \
 ```
 
 Use dry-run to see what would happen:
+
 ```bash
 file-sentinel replicate \
   -i ~/source::~/source.db \
@@ -357,11 +393,13 @@ file-sentinel replicate \
 **Solutions**:
 
 Verify source:
+
 ```bash
 file-sentinel verify -i ~/source::~/source.db
 ```
 
 If source is corrupted, heal it first:
+
 ```bash
 file-sentinel heal \
   -i ~/source::~/source.db \
@@ -369,6 +407,7 @@ file-sentinel heal \
 ```
 
 Then replicate:
+
 ```bash
 file-sentinel replicate \
   -i ~/source::~/source.db \
@@ -382,6 +421,7 @@ file-sentinel replicate \
 **Solution**: Files are in the recycle bin unless `--perma-delete` was used.
 
 Recover from recycle bin:
+
 ```bash
 # List recycled files
 ls -la /destination/.fs-recycle/
@@ -392,6 +432,7 @@ cp /destination/.fs-recycle/1734364800000_file.txt \
 ```
 
 **Prevention**: Use dry-run first to preview changes:
+
 ```bash
 file-sentinel replicate \
   -i ~/source::~/source.db \
@@ -410,18 +451,21 @@ file-sentinel replicate \
 **Solutions**:
 
 Verify mirrors:
+
 ```bash
 file-sentinel verify -i /mirror1/dir::/mirror1/digest.db
 file-sentinel verify -i /mirror2/dir::/mirror2/digest.db
 ```
 
 Ensure mirrors have the files:
+
 ```bash
 # Check if file exists in mirror
 ls -l /mirror1/dir/path/to/file
 ```
 
 Update mirror digests if outdated:
+
 ```bash
 file-sentinel digest -i /mirror1/dir::/mirror1/digest.db
 ```
@@ -433,6 +477,7 @@ file-sentinel digest -i /mirror1/dir::/mirror1/digest.db
 **Cause**: No `--mirror` option specified.
 
 **Solution**: Heal requires at least one mirror:
+
 ```bash
 file-sentinel heal \
   -i ~/dir::~/digest.db \
@@ -448,16 +493,19 @@ file-sentinel heal \
 **Solutions**:
 
 Use forward slashes (works on Windows):
+
 ```bash
 file-sentinel digest -i C:/Users/John/Documents::C:/Users/John/digest.db
 ```
 
 Or use double backslashes:
+
 ```bash
 file-sentinel digest -i C:\\Users\\John\\Documents::C:\\Users\\John\\digest.db
 ```
 
 Or quote the path:
+
 ```bash
 file-sentinel digest -i "C:\Users\John\Documents::C:\Users\John\digest.db"
 ```
@@ -485,16 +533,19 @@ file-sentinel digest -i "C:\Users\John\Documents::C:\Users\John\digest.db"
 **Solutions**:
 
 Check SELinux status:
+
 ```bash
 sestatus
 ```
 
 Temporarily set to permissive mode (testing only):
+
 ```bash
 sudo setenforce 0
 ```
 
 Add proper SELinux context (recommended):
+
 ```bash
 chcon -R -t user_home_t ~/Documents
 ```
@@ -508,6 +559,7 @@ Or disable SELinux for this operation.
 **Cause**: Incorrect path format.
 
 **Fix**: Use `::` separator:
+
 ```bash
 -i /path/to/dir::/path/to/digest.db
 ```
@@ -517,6 +569,7 @@ Or disable SELinux for this operation.
 **Cause**: Specified directory not found.
 
 **Fix**: Check path spelling and ensure directory exists:
+
 ```bash
 ls /path/to/directory
 ```
@@ -526,6 +579,7 @@ ls /path/to/directory
 **Context**: Running verify, replicate, or heal.
 
 **Fix**: Create digest first:
+
 ```bash
 file-sentinel digest -i /path/to/dir::/path/to/digest.db
 ```
@@ -535,6 +589,7 @@ file-sentinel digest -i /path/to/dir::/path/to/digest.db
 **Generic error**. Check the error messages above for details.
 
 **Get more information**:
+
 ```bash
 # Use verbose mode
 file-sentinel command -i path::digest.db --verbose
@@ -549,25 +604,28 @@ If you can't resolve an issue:
 ### Collect Information
 
 1. **Command used**:
+
    ```bash
    # The exact command you ran
    file-sentinel digest -i ~/docs::~/digest.db
    ```
 
 2. **Error message**:
+
    ```
    # Full error output (use --verbose)
    ```
 
 3. **Environment**:
+
    ```bash
    # OS and version
    uname -a  # Linux/macOS
    ver  # Windows
-   
+
    # Node.js version
    node --version
-   
+
    # File Sentinel version
    file-sentinel --version
    ```
@@ -581,6 +639,7 @@ If you can't resolve an issue:
 ### Report Issue
 
 Open an issue on the project repository with:
+
 - Description of the problem
 - What you expected to happen
 - What actually happened
@@ -592,16 +651,19 @@ Open an issue on the project repository with:
 ### Optimization Tips
 
 **For many small files**:
+
 - Process is I/O bound
 - Use faster storage (SSD)
 - Ensure good connection for network drives
 
 **For few large files**:
+
 - Process is CPU bound (hashing)
 - Progress shown every 10 seconds for files taking longer than 10 seconds to hash
 - Be patient, hashing is thorough
 
 **For network storage**:
+
 - Store digests locally
 - Use wired connections when possible
 - Avoid WiFi for large operations
@@ -612,6 +674,7 @@ Open an issue on the project repository with:
 Approximate speeds (will vary by hardware):
 
 **Hashing speed** (SHA-256):
+
 - Modern SSD: 300-500 MB/s
 - HDD: 100-150 MB/s
 - USB 3.0: 50-100 MB/s
@@ -619,6 +682,7 @@ Approximate speeds (will vary by hardware):
 - USB 2.0: 20-30 MB/s
 
 **Example**: 100 GB of data
+
 - Fast SSD: 3-5 minutes
 - HDD: 10-15 minutes
 - USB 3.0: 15-30 minutes
@@ -658,6 +722,96 @@ These are estimates. Actual time depends on file sizes, CPU speed, and system lo
 4. **Clean recycle bins** when safe
 5. **Check mirror status** before relying on them
 
+## Output and Display Issues
+
+### Garbled Output or Strange Characters
+
+**Problem**: Output contains escape codes like `[32m`, `[0m`, or progress bars appear broken.
+
+**Cause**: Terminal doesn't support ANSI escape codes, or output is being redirected.
+
+**Solutions**:
+
+Use `--no-tty` flag to disable colors and progress bars:
+
+```bash
+file-sentinel digest -i ~/docs::~/docs.db --no-tty
+```
+
+For redirected output, use `--no-tty`:
+
+```bash
+file-sentinel verify -i ~/docs::~/docs.db --no-tty > output.log 2>&1
+```
+
+**Note**: TTY mode is automatically detected when output is redirected, but `--no-tty` can force non-TTY behavior.
+
+### Progress Bars Not Showing
+
+**Problem**: No progress bars or spinners appear during operations.
+
+**Possible causes**:
+
+1. Output is redirected to a file
+2. Running in a non-interactive environment (CI/CD, cron)
+3. Terminal doesn't support TTY features
+4. `--no-tty` flag was used
+
+**This is normal** in these situations. The operation continues normally, just without visual progress indicators.
+
+**To see progress** in logs:
+
+```bash
+file-sentinel digest -i ~/docs::~/docs.db --verbose
+```
+
+### Logs Not Appearing Immediately
+
+**Problem**: In TTY mode, logs are buffered and only shown after operation completes.
+
+**Explanation**: This is intentional design. Progress bars are shown during operation, and detailed logs are displayed after pressing any key.
+
+**To see logs immediately** (no buffering):
+
+```bash
+file-sentinel digest -i ~/docs::~/docs.db --no-tty
+```
+
+### Output Stuck Waiting for Keypress
+
+**Problem**: After operation completes, program waits for keypress but input doesn't work.
+
+**Cause**: Running in non-interactive environment where stdin is not available.
+
+**Solution**: Use `--no-tty` to skip interactive prompts:
+
+```bash
+file-sentinel digest -i ~/docs::~/docs.db --no-tty
+```
+
+### Colors Not Showing in Terminal
+
+**Problem**: Output is plain text without colors even in interactive terminal.
+
+**Possible causes**:
+
+1. Terminal doesn't support ANSI colors
+2. `--no-tty` flag was used
+3. Output is being piped or redirected
+
+**Check terminal support**:
+
+```bash
+echo $TERM  # Should show something like "xterm-256color"
+```
+
+**Force TTY mode** (if terminal supports it but detection fails):
+
+```bash
+# TTY mode is automatic; if colors don't show, terminal may not support them
+# Try a different terminal emulator
+```
+
 ## Debug Mode
 
 For deep troubleshooting, use verbose output:
@@ -668,3 +822,8 @@ file-sentinel command -i path::digest.db --verbose 2>&1 | tee debug.log
 
 This saves all output to `debug.log` for review or sharing.
 
+**For clean logs without colors** (better for sharing):
+
+```bash
+file-sentinel command -i path::digest.db --verbose --no-tty 2>&1 | tee debug.log
+```
