@@ -9,6 +9,7 @@ type BaseConfig = {
   panicOnError: boolean;
   dryRun: boolean;
   ioTimeout: number;
+  noTTY: boolean;
   hashAlgorithm: "sha256";
 };
 

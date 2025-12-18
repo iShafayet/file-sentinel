@@ -1,11 +1,5 @@
 import { Command } from "commander";
-import {
-  Config,
-  DigestConfig,
-  VerifyConfig,
-  ReplicateConfig,
-  HealConfig,
-} from "../model/config.js";
+import { Config, DigestConfig, VerifyConfig, ReplicateConfig, HealConfig } from "../model/config.js";
 import { parseInputOption } from "./path-utils.js";
 
 /**
@@ -16,10 +10,7 @@ export function parseArgs(argv?: string[]): Config {
 
   let parsedConfig: Config | null = null;
 
-  program
-    .name("file-sentinel")
-    .description("File integrity and replication tool")
-    .version("2.0.0");
+  program.name("file-sentinel").description("File integrity and replication tool").version("2.0.0");
 
   // Digest command
   program
@@ -33,6 +24,7 @@ export function parseArgs(argv?: string[]): Config {
     .option("--verbose", "Verbose output", false)
     .option("--panic-on-error", "Exit on first error", false)
     .option("--dry-run", "Simulate without writing", false)
+    .option("--no-tty", "Disable TTY mode (no colors, no interactive prompts)", false)
     .option("-t, --io-timeout <seconds>", "IO timeout in seconds", "30")
     .action((options) => {
       const { dir, digestFile } = parseInputOption(options.input);
@@ -44,6 +36,7 @@ export function parseArgs(argv?: string[]): Config {
         verbose: options.verbose,
         panicOnError: options.panicOnError,
         dryRun: options.dryRun,
+        noTTY: !options.tty, // Commander.js inverts --no-tty to options.tty
         ioTimeout: parseInt(options.ioTimeout, 10),
       };
       parsedConfig = config;
@@ -62,6 +55,7 @@ export function parseArgs(argv?: string[]): Config {
     .option("--verbose", "Verbose output", false)
     .option("--panic-on-error", "Exit on first error", false)
     .option("--dry-run", "Simulate without writing", false)
+    .option("--no-tty", "Disable TTY mode (no colors, no interactive prompts)", false)
     .option("-t, --io-timeout <seconds>", "IO timeout in seconds", "30")
     .action((options) => {
       const { dir, digestFile } = parseInputOption(options.input);
@@ -74,6 +68,7 @@ export function parseArgs(argv?: string[]): Config {
         verbose: options.verbose,
         panicOnError: options.panicOnError,
         dryRun: options.dryRun,
+        noTTY: !options.tty, // Commander.js inverts --no-tty to options.tty
         ioTimeout: parseInt(options.ioTimeout, 10),
       };
       parsedConfig = config;
@@ -103,6 +98,7 @@ export function parseArgs(argv?: string[]): Config {
     .option("--verbose", "Verbose output", false)
     .option("--panic-on-error", "Exit on first error", false)
     .option("--dry-run", "Simulate without writing", false)
+    .option("--no-tty", "Disable TTY mode (no colors, no interactive prompts)", false)
     .option("-t, --io-timeout <seconds>", "IO timeout in seconds", "30")
     .action((options) => {
       const source = parseInputOption(options.input);
@@ -120,6 +116,7 @@ export function parseArgs(argv?: string[]): Config {
         verbose: options.verbose,
         panicOnError: options.panicOnError,
         dryRun: options.dryRun,
+        noTTY: !options.tty, // Commander.js inverts --no-tty to options.tty
         ioTimeout: parseInt(options.ioTimeout, 10),
       };
       parsedConfig = config;
@@ -144,6 +141,7 @@ export function parseArgs(argv?: string[]): Config {
     .option("--verbose", "Verbose output", false)
     .option("--panic-on-error", "Exit on first error", false)
     .option("--dry-run", "Simulate without writing", false)
+    .option("--no-tty", "Disable TTY mode (no colors, no interactive prompts)", false)
     .option("-t, --io-timeout <seconds>", "IO timeout in seconds", "30")
     .action((options) => {
       const { dir, digestFile } = parseInputOption(options.input);
@@ -164,6 +162,7 @@ export function parseArgs(argv?: string[]): Config {
         verbose: options.verbose,
         panicOnError: options.panicOnError,
         dryRun: options.dryRun,
+        noTTY: !options.tty, // Commander.js inverts --no-tty to options.tty
         ioTimeout: parseInt(options.ioTimeout, 10),
       };
       parsedConfig = config;
@@ -188,7 +187,10 @@ export function parseArgs(argv?: string[]): Config {
 /**
  * Collector function for mirrors
  */
-function collectMirrors(value: string, previous: Array<{ dir: string; digestFile: string }>): Array<{ dir: string; digestFile: string }> {
+function collectMirrors(
+  value: string,
+  previous: Array<{ dir: string; digestFile: string }>
+): Array<{ dir: string; digestFile: string }> {
   const parsed = parseInputOption(value);
   return [...previous, parsed];
 }

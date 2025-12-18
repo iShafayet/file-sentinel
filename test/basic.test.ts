@@ -9,9 +9,9 @@ import { createTestFiles, getDigestFilePath, getTestDirPath } from "./test-utils
 describe("Basic Digest Tests - v2", (): void => {
   test("setup should work", async (): Promise<void> => {
     createTestFiles("set1");
-    cpSync(join(global.testDataDir, "set1"), join(global.testDataDir, "set1-mirror1"), { 
-      recursive: true, 
-      preserveTimestamps: true 
+    cpSync(join(global.testDataDir, "set1"), join(global.testDataDir, "set1-mirror1"), {
+      recursive: true,
+      preserveTimestamps: true,
     });
   });
 
@@ -27,6 +27,7 @@ describe("Basic Digest Tests - v2", (): void => {
       verbose: true,
       panicOnError: true,
       dryRun: false,
+      noTTY: false,
       ioTimeout: 30,
     };
 
@@ -59,6 +60,7 @@ describe("Basic Digest Tests - v2", (): void => {
       verbose: true,
       panicOnError: true,
       dryRun: false,
+      noTTY: false,
       ioTimeout: 30,
     };
 
@@ -89,6 +91,7 @@ describe("Basic Digest Tests - v2", (): void => {
       verbose: true,
       panicOnError: true,
       dryRun: false,
+      noTTY: false,
       ioTimeout: 30,
     };
 
@@ -116,6 +119,7 @@ describe("Basic Verify Tests - v2", (): void => {
       verbose: true,
       panicOnError: true,
       dryRun: false,
+      noTTY: false,
       ioTimeout: 30,
     };
 
@@ -147,6 +151,7 @@ describe("Basic Verify Tests - v2", (): void => {
       verbose: false,
       panicOnError: false,
       dryRun: false,
+      noTTY: false,
       ioTimeout: 30,
     };
 
@@ -178,6 +183,7 @@ describe("Basic Verify Tests - v2", (): void => {
       verbose: false,
       panicOnError: false,
       dryRun: false,
+      noTTY: false,
       ioTimeout: 30,
     };
 
@@ -194,7 +200,7 @@ describe("Basic Replicate Tests - v2", (): void => {
   test("setup replicate test", async (): Promise<void> => {
     // Create fresh set for replication tests
     createTestFiles("set2");
-    
+
     // Create digest for source
     const sourceDir = getTestDirPath("set2");
     const sourceDigestFile = getDigestFilePath("set2");
@@ -207,6 +213,7 @@ describe("Basic Replicate Tests - v2", (): void => {
       verbose: false,
       panicOnError: true,
       dryRun: false,
+      noTTY: false,
       ioTimeout: 30,
     };
 
@@ -236,6 +243,7 @@ describe("Basic Replicate Tests - v2", (): void => {
       verbose: true,
       panicOnError: true,
       dryRun: false,
+      noTTY: false,
       ioTimeout: 30,
     };
 
@@ -270,6 +278,7 @@ describe("Basic Heal Tests - v2", (): void => {
       verbose: false,
       panicOnError: true,
       dryRun: false,
+      noTTY: false,
       ioTimeout: 30,
     };
 
@@ -302,6 +311,7 @@ describe("Basic Heal Tests - v2", (): void => {
       verbose: true,
       panicOnError: false,
       dryRun: false,
+      noTTY: false,
       ioTimeout: 30,
     };
 
@@ -311,7 +321,7 @@ describe("Basic Heal Tests - v2", (): void => {
 
     expect(executionResult.success).toBe(true);
     expect(executionResult.filesRecovered).toBe(1);
-    
+
     // Verify file was healed
     const healedContent = readFileSync(corruptedFilePath);
     expect(healedContent.length).toBe(originalContent.length);

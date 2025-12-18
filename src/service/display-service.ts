@@ -3,6 +3,7 @@ import { ExecutionResult } from "../model/execution-results.js";
 import { Command } from "../model/config.js";
 import { logger } from "../lib/logger.js";
 import * as readline from "readline";
+import { isTTY, isStdinTTY } from "../utility/terminal-utils.js";
 
 /**
  * Display service for managing in-place UI updates and progress display
@@ -30,6 +31,13 @@ class DisplayService {
     this.command = command.toUpperCase();
     this.directory = directory;
     this.title = "FILE SENTINEL";
+
+    // Only show UI elements if in TTY mode
+    if (!isTTY()) {
+      // Non-TTY mode: just log the basic info
+      logger.log(`Starting ${this.command} command on ${this.directory}`);
+      return;
+    }
 
     // Clear screen and show header
     console.clear();
@@ -250,11 +258,13 @@ class DisplayService {
       this.multibar.stop();
     }
 
-    // Display final stats
-    console.log("─".repeat(80));
-    console.log("SUMMARY:");
-    this.statsLines.forEach((line) => console.log(`  ${line}`));
-    console.log("═".repeat(80));
+    // Display final stats (only in TTY mode)
+    if (isTTY()) {
+      console.log("─".repeat(80));
+      console.log("SUMMARY:");
+      this.statsLines.forEach((line) => console.log(`  ${line}`));
+      console.log("═".repeat(80));
+    }
 
     this.isActive = false;
   }
@@ -270,8 +280,8 @@ class DisplayService {
     }
 
     // Skip keypress wait if not in TTY mode (e.g., in tests, CI, or piped output)
-    // Check both stdin and stdout - if either is not a TTY, auto-flush
-    if (!process.stdin.isTTY || !process.stdout.isTTY) {
+    // Check if we're in TTY mode - if not, auto-flush
+    if (!isTTY()) {
       // In non-interactive mode, just show the logs automatically
       console.log("\n");
       logger.flushBufferedLogs();
@@ -285,11 +295,15 @@ class DisplayService {
     return new Promise((resolve) => {
       // Set raw mode to capture single keypress
       readline.emitKeypressEvents(process.stdin);
-      process.stdin.setRawMode(true);
+      if (isStdinTTY()) {
+        process.stdin.setRawMode(true);
+      }
 
       const onKeyPress = () => {
         // Restore normal mode
-        process.stdin.setRawMode(false);
+        if (isStdinTTY()) {
+          process.stdin.setRawMode(false);
+        }
         process.stdin.removeListener("keypress", onKeyPress);
         process.stdin.pause();
 

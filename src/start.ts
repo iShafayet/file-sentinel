@@ -3,12 +3,18 @@
 import { parseArgs } from "./utility/cli-parser.js";
 import { FileSentinelProgram } from "./index.js";
 import { logger } from "./lib/logger.js";
+import { forceNonTTYMode } from "./utility/terminal-utils.js";
 
 // Parse command line arguments
 const config = parseArgs();
 
-// Initialize logger
-logger.init(config.verbose);
+// Force non-TTY mode if requested
+if (config.noTTY) {
+  forceNonTTYMode();
+}
+
+// Set logger verbosity
+logger.setVerbosity(config.verbose);
 
 logger.debug("(start)> Configuration:", config);
 
