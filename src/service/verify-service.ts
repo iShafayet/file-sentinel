@@ -194,7 +194,11 @@ class VerifyService {
     }
 
     // Check hash
-    const actualHash = await cryptoService.hashFile(filePath, hashAlgorithm);
+    const fileName = path.basename(filePath);
+    const actualHash = await cryptoService.hashFile(filePath, hashAlgorithm, (bytesRead, total) => {
+      const percentage = Math.floor((bytesRead / total) * 100);
+      displayService.updateFileProgress(percentage, 100, fileName);
+    });
     if (actualHash !== expectedHash) {
       return { success: false, reason: `Hash mismatch` };
     }

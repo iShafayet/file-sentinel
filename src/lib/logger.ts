@@ -2,7 +2,9 @@ const STYLE = {
   FgYellow: "\x1b[33m",
   FgWhite: "\x1b[37m",
   FgRed: "\x1b[31m",
+  FgGreen: "\x1b[32m",
   FgBlue: "\x1b[34m",
+  FgCyan: "\x1b[36m",
   FgOrange: "\x1b[38;5;208m",
   Reset: "\x1b[0m",
 };
@@ -125,7 +127,7 @@ class Logger {
 
   logPositive(...args: any) {
     if (!this.switches.log) return;
-    this.logOrBuffer("POS\t", STYLE.FgBlue, args);
+    this.logOrBuffer("POS\t", STYLE.FgGreen, args);
   }
 
   urgent(...args: any) {
@@ -133,7 +135,7 @@ class Logger {
     args.forEach((arg: any, index: number) => {
       args[index] = JSON.stringify(arg, null, 2);
     });
-    this.logOrBuffer("URG\t", STYLE.FgBlue, args);
+    this.logOrBuffer("URG\t", STYLE.FgCyan, args);
   }
 
   important(...args: any) {

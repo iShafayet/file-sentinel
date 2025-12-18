@@ -279,7 +279,10 @@ class ReplicateService {
       if (fs.existsSync(destPath)) {
         const destStats = fs.statSync(destPath);
         if (destStats.size === expectedSize) {
-          const destHash = await cryptoService.hashFile(destPath, config.hashAlgorithm);
+          const destHash = await cryptoService.hashFile(destPath, config.hashAlgorithm, (bytesRead, total) => {
+            const percentage = Math.floor((bytesRead / total) * 100);
+            displayService.updateFileProgress(percentage, 100, `[Check] ${relativePath}`);
+          });
           if (destHash === expectedHash) {
             // File already correct, skip
             return { success: true };
@@ -301,7 +304,10 @@ class ReplicateService {
 
       // Verify source integrity
       try {
-        const sourceHash = await cryptoService.hashFile(sourcePath, config.hashAlgorithm);
+        const sourceHash = await cryptoService.hashFile(sourcePath, config.hashAlgorithm, (bytesRead, total) => {
+          const percentage = Math.floor((bytesRead / total) * 100);
+          displayService.updateFileProgress(percentage, 100, `[Verify] ${relativePath}`);
+        });
         const sourceStats = fs.statSync(sourcePath);
 
         if (sourceHash !== expectedHash || sourceStats.size !== expectedSize) {
@@ -319,7 +325,10 @@ class ReplicateService {
           await fsPromises.copyFile(sourcePath, destPath);
 
           // Verify copy
-          const copiedHash = await cryptoService.hashFile(destPath, config.hashAlgorithm);
+          const copiedHash = await cryptoService.hashFile(destPath, config.hashAlgorithm, (bytesRead, total) => {
+            const percentage = Math.floor((bytesRead / total) * 100);
+            displayService.updateFileProgress(percentage, 100, `[Validate] ${relativePath}`);
+          });
           if (copiedHash !== expectedHash) {
             return { success: false, reason: "Copy verification failed" };
           }

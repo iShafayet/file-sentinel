@@ -72,8 +72,15 @@ class CryptoService {
   /**
    * Convenience method for v2 - hashes a file using the specified algorithm
    * Shows progress every 10 seconds (only for files that take longer than 10 seconds to hash)
+   * @param filePath - Path to file to hash
+   * @param algorithm - Hash algorithm to use
+   * @param externalProgressCallback - Optional callback for external progress updates (e.g., display service)
    */
-  async hashFile(filePath: string, algorithm: "sha256"): Promise<string> {
+  async hashFile(
+    filePath: string,
+    algorithm: "sha256",
+    externalProgressCallback?: (bytesRead: number, total: number) => void
+  ): Promise<string> {
     const stats = fs.statSync(filePath);
     const size = stats.size;
     const fileName = path.basename(filePath);
@@ -83,6 +90,11 @@ class CryptoService {
     const progressFn = (bytesRead: number) => {
       const now = Date.now();
       const elapsed = now - startTime;
+
+      // Call external progress callback if provided
+      if (externalProgressCallback) {
+        externalProgressCallback(bytesRead, size);
+      }
 
       // Only log progress after 10 seconds have elapsed, and then every 10 seconds
       if (elapsed >= HASH_PROGRESS_INTERVAL_MS && now - lastLogTime >= HASH_PROGRESS_INTERVAL_MS) {

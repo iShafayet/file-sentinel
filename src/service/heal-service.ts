@@ -176,7 +176,10 @@ class HealService {
         // Check size
         if (stats.size === expectedSize) {
           // Check hash
-          const actualHash = await cryptoService.hashFile(targetPath, hashAlgorithm);
+          const actualHash = await cryptoService.hashFile(targetPath, hashAlgorithm, (bytesRead, total) => {
+            const percentage = Math.floor((bytesRead / total) * 100);
+            displayService.updateFileProgress(percentage, 100, `[Check] ${relativePath}`);
+          });
           if (actualHash === expectedHash) {
             // File is valid, no healing needed
             return { verified: true, healed: false };
@@ -208,7 +211,10 @@ class HealService {
           continue;
         }
 
-        const mirrorHash = await cryptoService.hashFile(mirrorPath, hashAlgorithm);
+        const mirrorHash = await cryptoService.hashFile(mirrorPath, hashAlgorithm, (bytesRead, total) => {
+          const percentage = Math.floor((bytesRead / total) * 100);
+          displayService.updateFileProgress(percentage, 100, `[Verify Mirror] ${relativePath}`);
+        });
         if (mirrorHash !== expectedHash) {
           logger.logNegative(`(heal-service)> Mirror hash mismatch: ${mirrorPath}`);
           continue;
