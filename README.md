@@ -78,9 +78,10 @@ File Sentinel provides four main commands:
 - **Mirror support** - Multiple backup locations for redundancy
 - **Recycle bin** - Soft deletion with recovery option
 - **Subdirectory filtering** - Process only specific folders
-- **Progress reporting** - Real-time feedback for long operations
+- **Progress reporting** - Real-time feedback with progress bars and spinners
 - **Cross-platform** - Works on Linux, macOS, and Windows
 - **Dry-run mode** - Preview changes before execution
+- **Automation-friendly** - Clean output for scripts and CI/CD with `--no-tty`
 
 ## Documentation
 

@@ -9,11 +9,13 @@ file-sentinel <command> [options]
 ```
 
 To see available commands:
+
 ```bash
 file-sentinel --help
 ```
 
 To see help for a specific command:
+
 ```bash
 file-sentinel <command> --help
 ```
@@ -31,6 +33,7 @@ file-sentinel digest -i ~/docs::~/docs.db --verbose
 ```
 
 **Output includes**:
+
 - Each file being processed
 - Progress percentages
 - Detailed operation statistics
@@ -44,6 +47,7 @@ file-sentinel verify -i ~/docs::~/docs.db --panic-on-error
 ```
 
 **Use when**:
+
 - Errors must stop the process
 - Running in automated scripts
 - Validation requirements are strict
@@ -60,6 +64,7 @@ file-sentinel replicate \
 ```
 
 **What happens**:
+
 - All checks and validations run
 - No files are modified or copied
 - No database changes are made
@@ -74,9 +79,42 @@ file-sentinel digest -i ~/docs::~/docs.db -t 60
 ```
 
 **Use when**:
+
 - Working with slow storage (network drives, USB)
 - Large files that take time to read
 - Unstable connections
+
+### --no-tty
+
+Disable TTY mode to remove interactive features and ANSI colors.
+
+```bash
+file-sentinel digest -i ~/docs::~/docs.db --no-tty
+```
+
+**What changes**:
+
+- No progress bars or spinners
+- No ANSI color codes in output
+- No interactive keypress prompts
+- Logs output immediately (not buffered)
+- Clean, parseable text output
+
+**Use when**:
+
+- Output is redirected to a file (`> output.log`)
+- Running in CI/CD pipelines
+- Running in automated scripts
+- Parsing output with other tools
+- Terminal doesn't support ANSI codes
+
+**Example with output redirection**:
+
+```bash
+file-sentinel verify -i ~/docs::~/docs.db --no-tty > verify.log 2>&1
+```
+
+**Note**: TTY mode is automatically detected when output is redirected, but `--no-tty` can be used to explicitly force non-TTY behavior.
 
 ## digest Command
 
@@ -101,6 +139,7 @@ file-sentinel digest -i ~/Documents::~/Documents/digest.db
 **Format**: `directory-path::digest-file-path`
 
 **Examples**:
+
 ```bash
 # Linux/macOS
 -i /home/user/photos::/home/user/photos.db
@@ -160,22 +199,26 @@ Files Deleted: 0
 ### Examples
 
 **Create a new digest**:
+
 ```bash
 file-sentinel digest -i ~/Documents::~/digest.db
 ```
 
 **Update an existing digest**:
+
 ```bash
 # Same command - automatically updates if digest exists
 file-sentinel digest -i ~/Documents::~/digest.db
 ```
 
 **Verbose output**:
+
 ```bash
 file-sentinel digest -i ~/Documents::~/digest.db --verbose
 ```
 
 **Dry run to preview changes**:
+
 ```bash
 file-sentinel digest -i ~/Documents::~/digest.db --dry-run
 ```
@@ -263,11 +306,13 @@ Files Extra: 0
 ### Examples
 
 **Verify entire directory**:
+
 ```bash
 file-sentinel verify -i ~/Documents::~/digest.db
 ```
 
 **Verify only photos from 2024**:
+
 ```bash
 file-sentinel verify \
   -i ~/Documents::~/digest.db \
@@ -275,6 +320,7 @@ file-sentinel verify \
 ```
 
 **Stop on first error**:
+
 ```bash
 file-sentinel verify \
   -i ~/Documents::~/digest.db \
@@ -282,6 +328,7 @@ file-sentinel verify \
 ```
 
 **Detailed output**:
+
 ```bash
 file-sentinel verify \
   -i ~/Documents::~/digest.db \
@@ -410,6 +457,7 @@ Files Recovery Failed: 0
 ### Examples
 
 **Simple replication**:
+
 ```bash
 file-sentinel replicate \
   -i ~/Documents::~/docs.db \
@@ -417,6 +465,7 @@ file-sentinel replicate \
 ```
 
 **With mirrors for redundancy**:
+
 ```bash
 file-sentinel replicate \
   -i ~/Documents::~/docs.db \
@@ -426,6 +475,7 @@ file-sentinel replicate \
 ```
 
 **Replicate only one folder**:
+
 ```bash
 file-sentinel replicate \
   -i ~/Documents::~/docs.db \
@@ -434,6 +484,7 @@ file-sentinel replicate \
 ```
 
 **With permanent deletion**:
+
 ```bash
 file-sentinel replicate \
   -i ~/Documents::~/docs.db \
@@ -540,6 +591,7 @@ Files Recovery Failed: 0
 ### Examples
 
 **Basic healing**:
+
 ```bash
 file-sentinel heal \
   -i ~/Documents::~/docs.db \
@@ -547,6 +599,7 @@ file-sentinel heal \
 ```
 
 **Multiple mirrors**:
+
 ```bash
 file-sentinel heal \
   -i ~/Documents::~/docs.db \
@@ -555,6 +608,7 @@ file-sentinel heal \
 ```
 
 **Heal specific folder**:
+
 ```bash
 file-sentinel heal \
   -i ~/Documents::~/docs.db \
@@ -563,6 +617,7 @@ file-sentinel heal \
 ```
 
 **Dry run to see what would be healed**:
+
 ```bash
 file-sentinel heal \
   -i ~/Documents::~/docs.db \
@@ -646,4 +701,3 @@ file-sentinel heal \
   --mirror /network-backup/data::/network-backup/data.db \
   --mirror /cloud-backup/data::/cloud-backup/data.db
 ```
-
