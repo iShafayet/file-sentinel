@@ -4,6 +4,7 @@ const STYLE = {
   FgRed: "\x1b[31m",
   FgBlue: "\x1b[34m",
   FgOrange: "\x1b[38;5;208m",
+  Reset: "\x1b[0m",
 };
 
 export type LoggerSwitches = {
@@ -14,8 +15,18 @@ export type LoggerSwitches = {
   error: boolean;
   urgent: boolean;
 };
+
+type LogEntry = {
+  timestamp: string;
+  level: string;
+  args: any[];
+  style: string;
+};
+
 class Logger {
   private switches: LoggerSwitches;
+  private buffering = false;
+  private logBuffer: LogEntry[] = [];
 
   constructor(switches: LoggerSwitches) {
     this.switches = {
@@ -36,28 +47,85 @@ class Logger {
     }
   }
 
+  /**
+   * Enable log buffering mode
+   */
+  enableBuffering() {
+    this.buffering = true;
+    this.logBuffer = [];
+  }
+
+  /**
+   * Disable log buffering and return buffered logs
+   */
+  disableBuffering(): LogEntry[] {
+    this.buffering = false;
+    return this.logBuffer;
+  }
+
+  /**
+   * Flush all buffered logs to console
+   */
+  flushBufferedLogs() {
+    if (this.logBuffer.length === 0) {
+      return;
+    }
+
+    console.log("\n");
+    console.log("═".repeat(80));
+    console.log("DETAILED LOGS:");
+    console.log("═".repeat(80));
+
+    for (const entry of this.logBuffer) {
+      console.log.apply(console, [entry.style, entry.timestamp, entry.level, ...entry.args]);
+    }
+
+    console.log("═".repeat(80));
+    console.log(`Total log entries: ${this.logBuffer.length}`);
+    console.log("═".repeat(80));
+
+    this.logBuffer = [];
+  }
+
+  /**
+   * Get count of buffered logs
+   */
+  getBufferedLogCount(): number {
+    return this.logBuffer.length;
+  }
+
+  /**
+   * Internal method to log or buffer based on mode
+   */
+  private logOrBuffer(level: string, style: string, args: any[]) {
+    const timestamp = new Date().toISOString();
+
+    if (this.buffering) {
+      this.logBuffer.push({ timestamp, level, args, style });
+    } else {
+      console.log.apply(console, [style, timestamp, level, ...args]);
+    }
+  }
+
   debug(...args: any) {
     if (!this.switches.debug) return;
-    const timestamp = new Date().toISOString();
-    console.log.apply(console, [STYLE.FgYellow, timestamp, "DEBUG\t", ...args]);
+    // Debug logs should not be colored
+    this.logOrBuffer("DEBUG\t", STYLE.Reset, args);
   }
 
   log(...args: any) {
     if (!this.switches.log) return;
-    const timestamp = new Date().toISOString();
-    console.log.apply(console, [STYLE.FgWhite, timestamp, "LOG\t", ...args]);
+    this.logOrBuffer("LOG\t", STYLE.FgWhite, args);
   }
 
   logNegative(...args: any) {
     if (!this.switches.log) return;
-    const timestamp = new Date().toISOString();
-    console.log.apply(console, [STYLE.FgRed, timestamp, "NEG\t", ...args]);
+    this.logOrBuffer("NEG\t", STYLE.FgRed, args);
   }
 
   logPositive(...args: any) {
     if (!this.switches.log) return;
-    const timestamp = new Date().toISOString();
-    console.log.apply(console, [STYLE.FgBlue, timestamp, "POS\t", ...args]);
+    this.logOrBuffer("POS\t", STYLE.FgBlue, args);
   }
 
   urgent(...args: any) {
@@ -65,35 +133,33 @@ class Logger {
     args.forEach((arg: any, index: number) => {
       args[index] = JSON.stringify(arg, null, 2);
     });
-    const timestamp = new Date().toISOString();
-    console.log.apply(console, [STYLE.FgBlue, timestamp, "URG\t", ...args]);
+    this.logOrBuffer("URG\t", STYLE.FgBlue, args);
   }
 
   important(...args: any) {
     if (!this.switches.important) return;
-    const timestamp = new Date().toISOString();
-    console.log.apply(console, [STYLE.FgBlue, timestamp, "IMP\t", ...args]);
+    this.logOrBuffer("IMP\t", STYLE.FgBlue, args);
   }
 
   warn(errorObject: Error, optionalContext = null) {
-    console.warn(errorObject);
-
-    let errorString = JSON.stringify(
-      errorObject,
-      Object.getOwnPropertyNames(errorObject)
-    );
-    const timestamp = new Date().toISOString();
-    console.log.apply(console, [STYLE.FgOrange, timestamp, "WARN\t", errorString, optionalContext]);
+    if (this.buffering) {
+      let errorString = JSON.stringify(errorObject, Object.getOwnPropertyNames(errorObject));
+      this.logOrBuffer("WARN\t", STYLE.FgOrange, [errorString, optionalContext]);
+    } else {
+      console.warn(errorObject);
+      let errorString = JSON.stringify(errorObject, Object.getOwnPropertyNames(errorObject));
+      const timestamp = new Date().toISOString();
+      console.log.apply(console, [STYLE.FgOrange, timestamp, "WARN\t", errorString, optionalContext]);
+    }
   }
 
   error(errorObject: Error, optionalContext = null) {
-    console.error(errorObject);
-
-    // let errorString = JSON.stringify(
-    //   errorObject,
-    //   Object.getOwnPropertyNames(errorObject)
-    // );
-    // console.log.apply(console, ["IMPORTANT\t", errorString, optionalContext]);
+    if (this.buffering) {
+      let errorString = JSON.stringify(errorObject, Object.getOwnPropertyNames(errorObject));
+      this.logOrBuffer("ERROR\t", STYLE.FgRed, [errorString, optionalContext]);
+    } else {
+      console.error(errorObject);
+    }
   }
 }
 

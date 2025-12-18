@@ -2,6 +2,7 @@ import { Config } from "./model/config.js";
 import { logger } from "./lib/logger.js";
 import { sanityService } from "./service/sanity-service.js";
 import { coreService } from "./service/core-service.js";
+import { displayService } from "./service/display-service.js";
 import { ExecutionResult } from "./model/execution-results.js";
 
 /**
@@ -30,7 +31,7 @@ export class FileSentinelProgram {
    */
   private async initialize(): Promise<void> {
     logger.log("(program)> Initializing file-sentinel v2.0.0");
-    
+
     try {
       sanityService.verifyPathsInConfig(this.config);
       logger.debug("(program)> Configuration validated successfully");
@@ -46,11 +47,14 @@ export class FileSentinelProgram {
   private async run(): Promise<ExecutionResult> {
     const command = this.config.command;
     logger.log(`(program)> Executing command: "${command}"`);
-    
+
     const result = await coreService.handle(this.config);
-    
+
     logger.log("(program)> Command execution complete");
-    
+
+    // After operation completes, wait for keypress to show logs
+    await displayService.waitForKeyPressAndShowLogs();
+
     return result;
   }
 
