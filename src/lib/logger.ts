@@ -16,13 +16,14 @@ export type LoggerSwitches = {
   warning: boolean;
   error: boolean;
   urgent: boolean;
+  color?: boolean; // Optional, defaults to true for TTY
 };
 
 type LogEntry = {
   timestamp: string;
   level: string;
   args: any[];
-  style: string;
+  style: string | null;
 };
 
 class Logger {
@@ -33,6 +34,8 @@ class Logger {
   constructor(switches: LoggerSwitches) {
     this.switches = {
       ...switches,
+      // Color defaults to true, will be checked at runtime
+      color: switches.color !== undefined ? switches.color : true,
     };
   }
 
@@ -79,7 +82,11 @@ class Logger {
     console.log("═".repeat(80));
 
     for (const entry of this.logBuffer) {
-      console.log.apply(console, [entry.style, entry.timestamp, entry.level, ...entry.args]);
+      if (entry.style !== null) {
+        console.log.apply(console, [entry.style, entry.timestamp, entry.level, ...entry.args]);
+      } else {
+        console.log.apply(console, [entry.timestamp, entry.level, ...entry.args]);
+      }
     }
 
     console.log("═".repeat(80));
@@ -101,11 +108,19 @@ class Logger {
    */
   private logOrBuffer(level: string, style: string, args: any[]) {
     const timestamp = new Date().toISOString();
+    // Check TTY status at runtime - disable colors if either stdin or stdout is not a TTY
+    const isTTY = process.stdin.isTTY && process.stdout.isTTY;
+    const shouldUseColor = this.switches.color && isTTY;
+    const effectiveStyle = shouldUseColor ? style : null;
 
     if (this.buffering) {
-      this.logBuffer.push({ timestamp, level, args, style });
+      this.logBuffer.push({ timestamp, level, args, style: effectiveStyle });
     } else {
-      console.log.apply(console, [style, timestamp, level, ...args]);
+      if (effectiveStyle !== null) {
+        console.log.apply(console, [effectiveStyle, timestamp, level, ...args]);
+      } else {
+        console.log.apply(console, [timestamp, level, ...args]);
+      }
     }
   }
 

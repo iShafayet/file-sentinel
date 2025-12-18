@@ -270,7 +270,8 @@ class DisplayService {
     }
 
     // Skip keypress wait if not in TTY mode (e.g., in tests, CI, or piped output)
-    if (!process.stdin.isTTY) {
+    // Check both stdin and stdout - if either is not a TTY, auto-flush
+    if (!process.stdin.isTTY || !process.stdout.isTTY) {
       // In non-interactive mode, just show the logs automatically
       console.log("\n");
       logger.flushBufferedLogs();
