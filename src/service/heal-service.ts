@@ -3,6 +3,7 @@ import { HealConfig } from "../model/config.js";
 import { ExecutionResult, createExecutionResult, completeExecution, addError } from "../model/execution-results.js";
 import { DatabaseService } from "./database-service.js";
 import { cryptoService } from "./crypto-service.js";
+import { fileService } from "./file-service.js";
 import { displayService } from "./display-service.js";
 import { errorService } from "./error-service.js";
 import { joinPath } from "../utility/path-utils.js";
@@ -226,11 +227,17 @@ class HealService {
           const targetDirPath = path.dirname(targetPath);
           await fsPromises.mkdir(targetDirPath, { recursive: true });
 
-          // Copy file
-          await fsPromises.copyFile(mirrorPath, targetPath);
+          // Copy file with progress
+          await fileService.copyLargeFile(mirrorPath, targetPath, (bytesRead, totalBytes) => {
+            const percentage = Math.floor((bytesRead / totalBytes) * 100);
+            displayService.updateFileProgress(percentage, 100, `[Heal] ${relativePath}`);
+          });
 
           // Verify copy
-          const copiedHash = await cryptoService.hashFile(targetPath, hashAlgorithm);
+          const copiedHash = await cryptoService.hashFile(targetPath, hashAlgorithm, (bytesRead, total) => {
+            const percentage = Math.floor((bytesRead / total) * 100);
+            displayService.updateFileProgress(percentage, 100, `[Validate] ${relativePath}`);
+          });
           if (copiedHash !== expectedHash) {
             logger.logNegative(`(heal-service)> Copy verification failed: ${relativePath}`);
             continue;
