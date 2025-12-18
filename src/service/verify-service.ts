@@ -54,8 +54,17 @@ class VerifyService {
 
       logger.log(`(verify-service)> Found ${digestFiles.length} files in digest`);
 
-      // Discover files on disk
-      const discoveredFiles = discoveryService.discoverFiles(config.inputDir, config.subdirectory, result);
+      // Discover files on disk with progress
+      displayService.startDiscovery();
+      const discoveredFiles = await discoveryService.discoverFiles(
+        config.inputDir,
+        config.subdirectory,
+        result,
+        (fileCount, currentDir) => {
+          displayService.updateDiscoveryProgress(fileCount, currentDir);
+        }
+      );
+      displayService.stopDiscovery();
       logger.log(`(verify-service)> Discovered ${discoveredFiles.length} files on disk`);
 
       // Create maps for comparison

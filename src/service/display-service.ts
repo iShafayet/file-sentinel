@@ -16,6 +16,11 @@ class DisplayService {
   private title = "";
   private command = "";
   private directory = "";
+  private discoveryInterval: NodeJS.Timeout | null = null;
+  private spinnerFrames = ["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"];
+  private spinnerIndex = 0;
+  private discoveryMode = false;
+  private discoveryBar: cliProgress.SingleBar | null = null;
 
   /**
    * Initializes the display with title, command, and directory info
@@ -35,7 +40,17 @@ class DisplayService {
       {
         clearOnComplete: false,
         hideCursor: true,
-        format: "{bar} | {percentage}% | {label}: {value}/{total}",
+        format: (options: any, params: any, payload: any) => {
+          // Custom format for discovery mode
+          if (payload.spinner !== undefined) {
+            return `${payload.spinner} Discovering files | Scanning: ${payload.directory} | Found: ${payload.count}`;
+          }
+          // Normal progress bar format
+          const percentage = Math.round(params.progress * 100);
+          const bar = options.barCompleteString.substr(0, Math.round(params.progress * options.barsize));
+          const incomplete = options.barIncompleteString.substr(0, options.barsize - bar.length);
+          return `${bar}${incomplete} | ${percentage}% | ${payload.label}: ${params.value}/${params.total}`;
+        },
         barCompleteChar: "\u2588",
         barIncompleteChar: "\u2591",
         stopOnComplete: true,
@@ -157,10 +172,78 @@ class DisplayService {
   }
 
   /**
+   * Starts discovery mode - shows spinner with progress bar
+   */
+  public startDiscovery(): void {
+    if (!this.isActive || !this.multibar) return;
+
+    this.discoveryMode = true;
+
+    // Create a discovery bar with custom format
+    this.discoveryBar = this.multibar.create(1, 0, {
+      spinner: this.spinnerFrames[0],
+      directory: "Initializing...",
+      count: "0",
+    });
+
+    // Start spinner animation
+    this.spinnerIndex = 0;
+    this.discoveryInterval = setInterval(() => {
+      this.spinnerIndex = (this.spinnerIndex + 1) % this.spinnerFrames.length;
+      // Update spinner frame
+      if (this.discoveryBar) {
+        this.discoveryBar.update(0, {
+          spinner: this.spinnerFrames[this.spinnerIndex],
+        });
+      }
+    }, 80); // Update every 80ms for smooth animation
+  }
+
+  /**
+   * Updates discovery progress with spinner, current directory, and file count
+   */
+  public updateDiscoveryProgress(fileCount: number, currentDir: string): void {
+    if (!this.isActive || !this.discoveryMode || !this.discoveryBar) return;
+
+    const truncatedDir = this.truncateFileName(currentDir, 45);
+
+    // Update discovery bar with current info
+    this.discoveryBar.update(0, {
+      spinner: this.spinnerFrames[this.spinnerIndex],
+      directory: truncatedDir,
+      count: fileCount.toLocaleString(),
+    });
+  }
+
+  /**
+   * Stops discovery mode and prepares for normal progress display
+   */
+  public stopDiscovery(): void {
+    if (this.discoveryInterval) {
+      clearInterval(this.discoveryInterval);
+      this.discoveryInterval = null;
+    }
+
+    // Remove discovery bar
+    if (this.discoveryBar && this.multibar) {
+      this.multibar.remove(this.discoveryBar);
+      this.discoveryBar = null;
+    }
+
+    this.discoveryMode = false;
+  }
+
+  /**
    * Stops the display and shows final stats
    */
   public stop(): void {
     if (!this.isActive) return;
+
+    // Stop discovery spinner if running
+    if (this.discoveryInterval) {
+      clearInterval(this.discoveryInterval);
+      this.discoveryInterval = null;
+    }
 
     // Stop all progress bars
     if (this.multibar) {
