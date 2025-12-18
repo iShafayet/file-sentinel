@@ -289,7 +289,7 @@ class DisplayService {
     }
 
     console.log("\n");
-    console.log(`📋 ${bufferedLogCount} log entries captured during operation.`);
+    console.log(`${bufferedLogCount} log entries captured during operation.`);
     console.log("Press any key to view detailed logs, or Ctrl+C to exit...");
 
     return new Promise((resolve) => {
@@ -385,9 +385,9 @@ class DisplayService {
     logger.log("=".repeat(80));
 
     if (executionResult.success) {
-      logger.log("✓ Operation completed successfully");
+      logger.log("Operation completed successfully");
     } else {
-      logger.logNegative("✗ Operation completed with errors");
+      logger.logNegative("Operation completed with errors");
     }
 
     logger.log("=".repeat(80));
