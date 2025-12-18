@@ -221,7 +221,10 @@ class DigestService {
 
     // If file is new
     if (!existing) {
-      const hash = await cryptoService.hashFile(fullPath, hashAlgorithm);
+      const hash = await cryptoService.hashFile(fullPath, hashAlgorithm, (bytesRead, total) => {
+        const percentage = Math.floor((bytesRead / total) * 100);
+        displayService.updateFileProgress(percentage, 100, relativePath);
+      });
 
       if (!dryRun && db.isOpen()) {
         db.upsertFile({
@@ -239,7 +242,10 @@ class DigestService {
     // If file exists, check if it changed
     if (existing.size !== size || existing.mtime !== mtime) {
       // Size or mtime changed, rehash
-      const hash = await cryptoService.hashFile(fullPath, hashAlgorithm);
+      const hash = await cryptoService.hashFile(fullPath, hashAlgorithm, (bytesRead, total) => {
+        const percentage = Math.floor((bytesRead / total) * 100);
+        displayService.updateFileProgress(percentage, 100, relativePath);
+      });
 
       if (hash !== existing.hash) {
         // Hash changed, update
