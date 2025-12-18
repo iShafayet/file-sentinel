@@ -1,3 +1,5 @@
+import { isTTY } from "../utility/terminal-utils.js";
+
 const STYLE = {
   FgYellow: "\x1b[33m",
   FgWhite: "\x1b[37m",
@@ -19,6 +21,15 @@ export type LoggerSwitches = {
   color?: boolean; // Optional, defaults to true for TTY
 };
 
+const DEFAULT_SWITCHES: LoggerSwitches = {
+  debug: false,
+  log: true,
+  important: true,
+  warning: true,
+  error: true,
+  urgent: true,
+};
+
 type LogEntry = {
   timestamp: string;
   level: string;
@@ -34,21 +45,16 @@ class Logger {
   constructor(switches: LoggerSwitches) {
     this.switches = {
       ...switches,
-      // Color defaults to true, will be checked at runtime
-      color: switches.color !== undefined ? switches.color : true,
     };
   }
 
-  init(verbose: boolean) {
-    this.setVerbosity(verbose);
-    this.debug("Logger initated");
-  }
-
-  setVerbosity(verbose: boolean) {
+  public setVerbosity(verbose: boolean) {
     if (verbose) {
       this.switches.debug = true;
+      this.debug("Logger verbosity set to verbose");
     } else {
       this.switches.debug = false;
+      this.debug("Logger verbosity set to non-verbose");
     }
   }
 
@@ -108,12 +114,9 @@ class Logger {
    */
   private logOrBuffer(level: string, style: string, args: any[]) {
     const timestamp = new Date().toISOString();
-    // Check TTY status at runtime - disable colors if either stdin or stdout is not a TTY
-    const isTTY = process.stdin.isTTY && process.stdout.isTTY;
-    const shouldUseColor = this.switches.color && isTTY;
-    const effectiveStyle = shouldUseColor ? style : null;
+    const effectiveStyle = isTTY() ? style : null;
 
-    if (this.buffering) {
+    if (this.buffering && isTTY()) {
       this.logBuffer.push({ timestamp, level, args, style: effectiveStyle });
     } else {
       if (effectiveStyle !== null) {
@@ -159,19 +162,19 @@ class Logger {
   }
 
   warn(errorObject: Error, optionalContext = null) {
-    if (this.buffering) {
+    if (this.buffering && isTTY()) {
       let errorString = JSON.stringify(errorObject, Object.getOwnPropertyNames(errorObject));
       this.logOrBuffer("WARN\t", STYLE.FgOrange, [errorString, optionalContext]);
     } else {
       console.warn(errorObject);
       let errorString = JSON.stringify(errorObject, Object.getOwnPropertyNames(errorObject));
       const timestamp = new Date().toISOString();
-      console.log.apply(console, [STYLE.FgOrange, timestamp, "WARN\t", errorString, optionalContext]);
+      console.log.apply(console, [timestamp, "WARN\t", errorString, optionalContext]);
     }
   }
 
   error(errorObject: Error, optionalContext = null) {
-    if (this.buffering) {
+    if (this.buffering && isTTY()) {
       let errorString = JSON.stringify(errorObject, Object.getOwnPropertyNames(errorObject));
       this.logOrBuffer("ERROR\t", STYLE.FgRed, [errorString, optionalContext]);
     } else {
@@ -180,13 +183,6 @@ class Logger {
   }
 }
 
-const logger = new Logger({
-  debug: false,
-  log: true,
-  important: true,
-  warning: true,
-  error: true,
-  urgent: true,
-});
+const logger = new Logger(DEFAULT_SWITCHES);
 
 export { logger };

@@ -1,5 +1,7 @@
 import fs from "fs";
 import constants from "../constant/common-constants.js";
+import { logger } from "../lib/logger.js";
+
 class FileService {
   verifyDirectoryExists(dir: string): boolean {
     return fs.existsSync(dir) && fs.statSync(dir).isDirectory();
@@ -41,7 +43,7 @@ class FileService {
         readStream.on("error", (err: Error) => {
           if (!finished) {
             finished = true;
-            console.error("Error copying file:", err);
+            logger.logNegative("(file-service)> Error copying file:", err.message);
             writeStream.destroy();
             reject(err);
           }
@@ -49,7 +51,7 @@ class FileService {
         writeStream.on("error", (err: Error) => {
           if (!finished) {
             finished = true;
-            console.error("Error copying file:", err);
+            logger.logNegative("(file-service)> Error copying file:", err.message);
             readStream.destroy();
             reject(err);
           }

@@ -9,7 +9,9 @@ describe("Large File Tests - v2", (): void => {
   const largeFileSize = global.largeFileSizeInBytes;
 
   test("setup large file test", async (): Promise<void> => {
-    console.log(`Creating large file: ${largeFileSize} bytes (${(largeFileSize / (1024 * 1024 * 1024)).toFixed(2)} GB)`);
+    console.log(
+      `Creating large file: ${largeFileSize} bytes (${(largeFileSize / (1024 * 1024 * 1024)).toFixed(2)} GB)`
+    );
     createSingleTestFile("large", largeFileName, largeFileSize);
     const largeFilePath = join(getTestDirPath("large"), largeFileName);
     expect(existsSync(largeFilePath)).toBe(true);
@@ -27,6 +29,7 @@ describe("Large File Tests - v2", (): void => {
       verbose: true,
       panicOnError: true,
       dryRun: false,
+      noTTY: false,
       ioTimeout: 300,
     };
 
@@ -52,6 +55,7 @@ describe("Large File Tests - v2", (): void => {
       verbose: true,
       panicOnError: true,
       dryRun: false,
+      noTTY: false,
       ioTimeout: 300,
     };
 
@@ -83,6 +87,7 @@ describe("Large File Tests - v2", (): void => {
       verbose: true,
       panicOnError: true,
       dryRun: false,
+      noTTY: false,
       ioTimeout: 300,
     };
 
@@ -92,7 +97,7 @@ describe("Large File Tests - v2", (): void => {
 
     expect(executionResult.success).toBe(true);
     expect(executionResult.filesCopied).toBe(1);
-    
+
     const copiedFilePath = join(destDir, largeFileName);
     expect(existsSync(copiedFilePath)).toBe(true);
   }, 600000); // 10 minute timeout
