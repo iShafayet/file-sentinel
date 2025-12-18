@@ -4,7 +4,7 @@ import { ExecutionResult, createExecutionResult, completeExecution, addError } f
 import { DatabaseService } from "./database-service.js";
 import { discoveryService } from "./discovery-service.js";
 import { cryptoService } from "./crypto-service.js";
-import { uxService } from "./ux-service.js";
+import { displayService } from "./display-service.js";
 import { errorService } from "./error-service.js";
 import path from "path";
 import fs from "fs";
@@ -23,9 +23,13 @@ class DigestService {
     result.filesUnchanged = 0;
     result.filesDeleted = 0;
 
-    logger.logPositive("=".repeat(80));
-    logger.logPositive("Starting Digest Operation");
-    logger.logPositive("=".repeat(80));
+    // Enable buffering and start display
+    logger.enableBuffering();
+    displayService.start("digest", config.inputDir);
+
+    logger.log("=".repeat(80));
+    logger.log("Starting Digest Operation");
+    logger.log("=".repeat(80));
     logger.log(`Input Directory: ${config.inputDir}`);
     logger.log(`Digest File: ${config.digestFile}`);
     logger.log(`Hash Algorithm: ${config.hashAlgorithm}`);
@@ -47,7 +51,7 @@ class DigestService {
       // Discover all files
       logger.log("(digest-service)> Discovering files...");
       const discoveredFiles = discoveryService.discoverFiles(config.inputDir, null, result);
-      logger.logPositive(`(digest-service)> Discovered ${discoveredFiles.length} files`);
+      logger.log(`(digest-service)> Discovered ${discoveredFiles.length} files`);
 
       // Get existing files from database
       const existingFileMap = new Map<string, { hash: string; size: number; mtime: number }>();
@@ -75,6 +79,11 @@ class DigestService {
         for (let i = 0; i < discoveredFiles.length; i++) {
           const relativePath = discoveredFiles[i];
 
+          // Update progress display
+          displayService.updateTaskProgress(i, discoveredFiles.length, "Processing files");
+          displayService.updateFileProgress(0, 100, relativePath);
+          displayService.updateStats(result);
+
           if (config.verbose && i % 100 === 0) {
             logger.log(`(digest-service)> Progress: ${i}/${discoveredFiles.length} files processed`);
           }
@@ -92,25 +101,22 @@ class DigestService {
             switch (status) {
               case "added":
                 result.filesAdded!++;
-                if (config.verbose) {
-                  logger.logPositive(`(digest-service)> Added: ${relativePath}`);
-                }
+                logger.debug(`(digest-service)> Added: ${relativePath}`);
                 break;
               case "updated":
                 result.filesUpdated!++;
-                if (config.verbose) {
-                  logger.log(`(digest-service)> Updated: ${relativePath}`);
-                }
+                logger.debug(`(digest-service)> Updated: ${relativePath}`);
                 break;
               case "unchanged":
                 result.filesUnchanged!++;
-                if (config.verbose) {
-                  logger.debug(`(digest-service)> Unchanged: ${relativePath}`);
-                }
+                logger.debug(`(digest-service)> Unchanged: ${relativePath}`);
                 break;
             }
 
             result.totalFilesProcessed++;
+
+            // Update file completion
+            displayService.updateFileProgress(100, 100, relativePath);
           } catch (error) {
             logger.logNegative(`(digest-service)> Error processing file: ${relativePath}`);
             addError(result, `Failed to process ${relativePath}: ${(error as Error).message}`);
@@ -166,8 +172,13 @@ class DigestService {
         db.completeOperation(operationId, result.success, result.errorCount);
       }
 
+      // Complete progress display
+      displayService.updateTaskProgress(discoveredFiles.length, discoveredFiles.length, "Complete");
+      displayService.updateStats(result);
+      displayService.stop();
+
       // Report results
-      uxService.logExecutionResult(result, config.verbose);
+      displayService.logExecutionResult(result, config.verbose);
     } catch (error) {
       logger.logNegative("(digest-service)> Digest operation failed");
       addError(result, `Digest failed: ${(error as Error).message}`);
@@ -177,6 +188,9 @@ class DigestService {
       if (!config.dryRun && db.isOpen() && operationId !== null) {
         db.completeOperation(operationId, false, result.errorCount);
       }
+
+      // Stop display on error
+      displayService.stop();
     } finally {
       if (db.isOpen()) {
         db.close();

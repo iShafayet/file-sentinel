@@ -4,7 +4,7 @@ import { ExecutionResult, createExecutionResult, completeExecution, addError } f
 import { DatabaseService } from "./database-service.js";
 import { discoveryService } from "./discovery-service.js";
 import { cryptoService } from "./crypto-service.js";
-import { uxService } from "./ux-service.js";
+import { displayService } from "./display-service.js";
 import { errorService } from "./error-service.js";
 import { isInSubdirectory } from "../utility/path-utils.js";
 import path from "path";
@@ -24,9 +24,13 @@ class VerifyService {
     result.filesMissing = 0;
     result.filesExtra = 0;
 
-    logger.logPositive("=".repeat(80));
-    logger.logPositive("Starting Verify Operation");
-    logger.logPositive("=".repeat(80));
+    // Enable buffering and start display
+    logger.enableBuffering();
+    displayService.start("verify", config.inputDir);
+
+    logger.log("=".repeat(80));
+    logger.log("Starting Verify Operation");
+    logger.log("=".repeat(80));
     logger.log(`Input Directory: ${config.inputDir}`);
     logger.log(`Digest File: ${config.digestFile}`);
     logger.log(`Subdirectory: ${config.subdirectory || "(entire directory)"}`);
@@ -65,6 +69,11 @@ class VerifyService {
         const digestFile = digestFiles[i];
         const relativePath = digestFile.relative_path;
 
+        // Update progress display
+        displayService.updateTaskProgress(i, digestFiles.length, "Verifying files");
+        displayService.updateFileProgress(0, 100, relativePath);
+        displayService.updateStats(result);
+
         if (config.verbose && i % 100 === 0) {
           logger.log(`(verify-service)> Progress: ${i}/${digestFiles.length} files verified`);
         }
@@ -93,9 +102,7 @@ class VerifyService {
 
           if (verifyResult.success) {
             result.filesVerified!++;
-            if (config.verbose) {
-              logger.debug(`(verify-service)> Verified: ${relativePath}`);
-            }
+            logger.debug(`(verify-service)> Verified: ${relativePath}`);
           } else {
             result.filesFailed!++;
             addError(result, `Verification failed for ${relativePath}: ${verifyResult.reason}`);
@@ -107,6 +114,9 @@ class VerifyService {
           }
 
           result.totalFilesProcessed++;
+
+          // Update file completion
+          displayService.updateFileProgress(100, 100, relativePath);
         } catch (error) {
           logger.logNegative(`(verify-service)> Error verifying file: ${relativePath}`);
           addError(result, `Error verifying ${relativePath}: ${(error as Error).message}`);
@@ -135,8 +145,13 @@ class VerifyService {
         db.completeOperation(operationId, result.success, result.errorCount);
       }
 
+      // Complete progress display
+      displayService.updateTaskProgress(digestFiles.length, digestFiles.length, "Complete");
+      displayService.updateStats(result);
+      displayService.stop();
+
       // Report results
-      uxService.logExecutionResult(result, config.verbose);
+      displayService.logExecutionResult(result, config.verbose);
     } catch (error) {
       logger.logNegative("(verify-service)> Verify operation failed");
       addError(result, `Verify failed: ${(error as Error).message}`);
@@ -146,6 +161,9 @@ class VerifyService {
       if (db.isOpen() && operationId !== null) {
         db.completeOperation(operationId, false, result.errorCount);
       }
+
+      // Stop display on error
+      displayService.stop();
     } finally {
       if (db.isOpen()) {
         db.close();

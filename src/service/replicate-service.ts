@@ -4,7 +4,7 @@ import { ExecutionResult, createExecutionResult, completeExecution, addError } f
 import { DatabaseService } from "./database-service.js";
 import { discoveryService } from "./discovery-service.js";
 import { cryptoService } from "./crypto-service.js";
-import { uxService } from "./ux-service.js";
+import { displayService } from "./display-service.js";
 import { errorService } from "./error-service.js";
 import { RecycleUtility } from "../utility/recycle-utility.js";
 import { isInSubdirectory, joinPath } from "../utility/path-utils.js";
@@ -26,9 +26,13 @@ class ReplicateService {
     result.filesRecovered = 0;
     result.filesRecoveryFailed = 0;
 
-    logger.logPositive("=".repeat(80));
-    logger.logPositive("Starting Replicate Operation");
-    logger.logPositive("=".repeat(80));
+    // Enable buffering and start display
+    logger.enableBuffering();
+    displayService.start("replicate", config.sourceDir);
+
+    logger.log("=".repeat(80));
+    logger.log("Starting Replicate Operation");
+    logger.log("=".repeat(80));
     logger.log(`Source Directory: ${config.sourceDir}`);
     logger.log(`Source Digest: ${config.sourceDigestFile}`);
     logger.log(`Destination Directory: ${config.destDir}`);
@@ -101,6 +105,11 @@ class ReplicateService {
           const sourceFile = sourceFiles[i];
           const relativePath = sourceFile.relative_path;
 
+          // Update progress display
+          displayService.updateTaskProgress(i, sourceFiles.length, "Replicating files");
+          displayService.updateFileProgress(0, 100, relativePath);
+          displayService.updateStats(result);
+
           if (config.verbose && i % 100 === 0) {
             logger.log(`(replicate-service)> Progress: ${i}/${sourceFiles.length} files processed`);
           }
@@ -118,6 +127,7 @@ class ReplicateService {
             if (replicateResult.success) {
               result.filesCopied!++;
               result.totalBytesProcessed += sourceFile.size;
+              displayService.updateFileProgress(100, 100, relativePath);
 
               // Update destination digest
               if (!config.dryRun && destDb.isOpen()) {
@@ -130,9 +140,7 @@ class ReplicateService {
                 });
               }
 
-              if (config.verbose) {
-                logger.logPositive(`(replicate-service)> Copied: ${relativePath}`);
-              }
+              logger.debug(`(replicate-service)> Copied: ${relativePath}`);
             } else {
               result.filesRecoveryFailed!++;
               addError(result, `Failed to replicate ${relativePath}: ${replicateResult.reason}`);
@@ -217,13 +225,21 @@ class ReplicateService {
         destDb.completeOperation(destOpId, result.success, result.errorCount);
       }
 
+      // Complete progress display
+      displayService.updateTaskProgress(sourceFiles.length, sourceFiles.length, "Complete");
+      displayService.updateStats(result);
+      displayService.stop();
+
       // Report results
-      uxService.logExecutionResult(result, config.verbose);
+      displayService.logExecutionResult(result, config.verbose);
     } catch (error) {
       logger.logNegative("(replicate-service)> Replicate operation failed");
       addError(result, `Replicate failed: ${(error as Error).message}`);
       completeExecution(result, false);
       errorService.handleError(error);
+
+      // Stop display on error
+      displayService.stop();
 
       if (sourceDb.isOpen() && sourceOpId !== null) {
         sourceDb.completeOperation(sourceOpId, false, result.errorCount);
