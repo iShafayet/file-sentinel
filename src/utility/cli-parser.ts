@@ -1,6 +1,7 @@
 import { Command } from "commander";
 import { Config, DigestConfig, VerifyConfig, ReplicateConfig, HealConfig } from "../model/config.js";
 import { parseInputOption } from "./path-utils.js";
+import { getVersion } from "./misc-utils.js";
 
 /**
  * Parses command line arguments and returns a Config object
@@ -10,7 +11,7 @@ export function parseArgs(argv?: string[]): Config {
 
   let parsedConfig: Config | null = null;
 
-  program.name("file-sentinel").description("File integrity and replication tool").version("2.0.0");
+  program.name("file-sentinel").description("File integrity and replication tool").version(getVersion());
 
   // Digest command
   program
