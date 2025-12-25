@@ -4,6 +4,7 @@ import { sanityService } from "./service/sanity-service.js";
 import { coreService } from "./service/core-service.js";
 import { displayService } from "./service/display-service.js";
 import { ExecutionResult } from "./model/execution-results.js";
+import { getVersion } from "./utility/misc-utils.js";
 
 /**
  * Main program entry point
@@ -30,7 +31,7 @@ export class FileSentinelProgram {
    * Initializes the program and validates configuration
    */
   private async initialize(): Promise<void> {
-    logger.log("(program)> Initializing file-sentinel v2.0.0");
+    logger.log(`(program)> Initializing file-sentinel v${getVersion()}`);
 
     try {
       sanityService.verifyPathsInConfig(this.config);
