@@ -1,6 +1,6 @@
 {
   "name": "file-sentinel",
-  "version": "2.0.1",
+  "version": "2.0.2",
   "description": "File integrity verification, replication, and recovery tool.",
   "author": "Sayem Shafayet <ishafayet@gmail.com>",
   "license": "GPL-3.0",
@@ -38,7 +38,7 @@
   },
   "scripts": {
     "build": "npx tsc && node scripts/post-build.js",
-    "prepublishOnly": "npm run build",
+    "prepublishOnly": "npm i && npm run build",
     "lint": "eslint .",
     "start": "node dist/src/start.js",
     "start-compiled": "npm run build && npm start",
