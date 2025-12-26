@@ -9,6 +9,7 @@ import { displayService } from "./display-service.js";
 import { errorService } from "./error-service.js";
 import { RecycleUtility } from "../utility/recycle-utility.js";
 import { isInSubdirectory, joinPath } from "../utility/path-utils.js";
+import { getFileSystemErrorMessage } from "../utility/error-utils.js";
 import path from "path";
 import fs from "fs";
 import { promises as fsPromises } from "fs";
@@ -300,10 +301,11 @@ class ReplicateService {
 
       // Check if source file exists
       if (!fs.existsSync(sourcePath)) {
+        logger.debug(`(replicate-service)> Source file not found: ${sourcePath}`);
         continue;
       }
 
-      // Verify source integrity
+      // Verify source integrity (READ operation - can try next source on error)
       try {
         const sourceHash = await cryptoService.hashFile(sourcePath, config.hashAlgorithm, (bytesRead, total) => {
           const percentage = Math.floor((bytesRead / total) * 100);
@@ -318,35 +320,74 @@ class ReplicateService {
 
         // Source is valid, copy to destination
         if (!config.dryRun) {
-          // Ensure destination directory exists
+          // Ensure destination directory exists (WRITE operation - fail immediately on error)
           const destDir = path.dirname(destPath);
-          await fsPromises.mkdir(destDir, { recursive: true });
+          
+          // Check for potentially problematic characters in path (e.g., colons on FAT32/exFAT)
+          if (destDir.includes(":")) {
+            // Colon detected - may fail on FAT32/exFAT filesystems
+            logger.debug(`(replicate-service)> Warning: Path contains colon, may fail on FAT32/exFAT: ${destDir}`);
+          }
+          
+          try {
+            await fsPromises.mkdir(destDir, { recursive: true });
+          } catch (error) {
+            const err = error as NodeJS.ErrnoException;
+            // Check if error might be due to invalid characters in filename
+            let errorMsg = getFileSystemErrorMessage(
+              err,
+              `Failed to create destination directory for file ${relativePath}: ${destDir}`
+            );
+            
+            // If path contains colon and we got ENOENT, suggest filesystem limitation
+            if (err.code === "ENOENT" && (destDir.includes(":") || relativePath.includes(":"))) {
+              errorMsg += " (Note: Colons in filenames are not supported on FAT32/exFAT filesystems)";
+            }
+            
+            return { success: false, reason: errorMsg };
+          }
 
-          // Copy file with progress
-          await fileService.copyLargeFile(sourcePath, destPath, (bytesRead, totalBytes) => {
-            const percentage = Math.floor((bytesRead / totalBytes) * 100);
-            displayService.updateFileProgress(percentage, 100, `[Copy] ${relativePath}`);
-          });
-
-          // Verify copy if validation is enabled
-          if (config.validatePostCopy) {
-            const copiedHash = await cryptoService.hashFile(destPath, config.hashAlgorithm, (bytesRead, total) => {
-              const percentage = Math.floor((bytesRead / total) * 100);
-              displayService.updateFileProgress(percentage, 100, `[Validate] ${relativePath}`);
+          // Copy file with progress (WRITE operation - fail immediately on error)
+          try {
+            await fileService.copyLargeFile(sourcePath, destPath, (bytesRead, totalBytes) => {
+              const percentage = Math.floor((bytesRead / totalBytes) * 100);
+              displayService.updateFileProgress(percentage, 100, `[Copy] ${relativePath}`);
             });
-            if (copiedHash !== expectedHash) {
-              return { success: false, reason: "Copy verification failed" };
+          } catch (error) {
+            const err = error as NodeJS.ErrnoException;
+            const errorMsg = getFileSystemErrorMessage(err, `Failed to copy file from ${sourcePath} to ${destPath}`);
+            return { success: false, reason: errorMsg };
+          }
+
+          // Verify copy if validation is enabled (READ operation on dest - fail immediately as it's post-write)
+          if (config.validatePostCopy) {
+            try {
+              const copiedHash = await cryptoService.hashFile(destPath, config.hashAlgorithm, (bytesRead, total) => {
+                const percentage = Math.floor((bytesRead / total) * 100);
+                displayService.updateFileProgress(percentage, 100, `[Validate] ${relativePath}`);
+              });
+              if (copiedHash !== expectedHash) {
+                return { success: false, reason: "Copy verification failed" };
+              }
+            } catch (error) {
+              const err = error as NodeJS.ErrnoException;
+              const errorMsg = getFileSystemErrorMessage(err, `Failed to verify copied file: ${destPath}`);
+              return { success: false, reason: errorMsg };
             }
           }
         }
 
         return { success: true };
       } catch (error) {
-        logger.logNegative(`(replicate-service)> Error copying from ${sourcePath}: ${(error as Error).message}`);
+        // READ error from source - log and try next source
+        const err = error as NodeJS.ErrnoException;
+        const errorMsg = getFileSystemErrorMessage(err, `Error reading from source: ${sourcePath}`);
+        logger.logNegative(`(replicate-service)> Error reading from ${sourcePath}: ${errorMsg}`);
         continue;
       }
     }
 
+    // All sources exhausted
     return { success: false, reason: "No valid source found" };
   }
 }
