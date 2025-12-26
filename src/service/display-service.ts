@@ -1,9 +1,10 @@
 import cliProgress from "cli-progress";
 import { ExecutionResult } from "../model/execution-results.js";
-import { Command } from "../model/config.js";
+import { Config } from "../model/config.js";
 import { logger } from "../lib/logger.js";
 import * as readline from "readline";
 import { isTTY, isStdinTTY } from "../utility/terminal-utils.js";
+import * as path from "path";
 
 /**
  * Display service for managing in-place UI updates and progress display
@@ -17,6 +18,7 @@ class DisplayService {
   private title = "";
   private command = "";
   private directory = "";
+  private config: Config | null = null;
   private discoveryInterval: NodeJS.Timeout | null = null;
   private spinnerFrames = ["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"];
   private spinnerIndex = 0;
@@ -26,10 +28,23 @@ class DisplayService {
   /**
    * Initializes the display with title, command, and directory info
    */
-  public start(command: Command, directory: string): void {
+  public start(config: Config): void {
     this.isActive = true;
-    this.command = command.toUpperCase();
-    this.directory = directory;
+    this.config = config;
+    this.command = config.command.toUpperCase();
+
+    // Determine directory based on command type
+    switch (config.command) {
+      case "digest":
+      case "verify":
+      case "heal":
+        this.directory = config.inputDir;
+        break;
+      case "replicate":
+        this.directory = config.sourceDir;
+        break;
+    }
+
     this.title = "FILE SENTINEL";
 
     // Only show UI elements if in TTY mode
@@ -77,14 +92,76 @@ class DisplayService {
   }
 
   /**
-   * Prints the header section
+   * Prints the header section with command-specific information
    */
   private printHeader(): void {
+    if (!this.config) return;
+
     console.log("═".repeat(80));
     console.log(`  ${this.title}`);
     console.log("═".repeat(80));
     console.log(`  Command: ${this.command}`);
-    console.log(`  Directory: ${this.directory}`);
+    console.log("─".repeat(80));
+
+    // Command-specific information
+    switch (this.config.command) {
+      case "digest":
+        console.log(`  Input Directory: ${this.config.inputDir}`);
+        console.log(`  Digest File: ${path.resolve(this.config.digestFile)}`);
+        break;
+
+      case "verify":
+        console.log(`  Input Directory: ${this.config.inputDir}`);
+        console.log(`  Digest File: ${path.resolve(this.config.digestFile)}`);
+        if (this.config.subdirectory) {
+          console.log(`  Subdirectory: ${this.config.subdirectory}`);
+        }
+        break;
+
+      case "replicate":
+        console.log(`  Source Directory: ${this.config.sourceDir}`);
+        console.log(`  Source Digest: ${path.resolve(this.config.sourceDigestFile)}`);
+        console.log(`  Destination Directory: ${this.config.destDir}`);
+        console.log(`  Destination Digest: ${path.resolve(this.config.destDigestFile)}`);
+        if (this.config.subdirectory) {
+          console.log(`  Subdirectory: ${this.config.subdirectory}`);
+        }
+        console.log(`  Mirrors: ${this.config.mirrors.length}`);
+        if (this.config.mirrors.length > 0) {
+          this.config.mirrors.forEach((mirror, index) => {
+            console.log(`    ${index + 1}. ${mirror.dir} (${path.resolve(mirror.digestFile)})`);
+          });
+        }
+        break;
+
+      case "heal":
+        console.log(`  Input Directory: ${this.config.inputDir}`);
+        console.log(`  Digest File: ${path.resolve(this.config.digestFile)}`);
+        if (this.config.subdirectory) {
+          console.log(`  Subdirectory: ${this.config.subdirectory}`);
+        }
+        console.log(`  Mirrors: ${this.config.mirrors.length}`);
+        if (this.config.mirrors.length > 0) {
+          this.config.mirrors.forEach((mirror, index) => {
+            console.log(`    ${index + 1}. ${mirror.dir} (${path.resolve(mirror.digestFile)})`);
+          });
+        }
+        break;
+    }
+
+    // Common configuration options
+    console.log("─".repeat(80));
+    console.log(`  Configuration:`);
+    console.log(`    Hash Algorithm: ${this.config.hashAlgorithm.toUpperCase()}`);
+    console.log(`    Dry Run: ${this.config.dryRun ? "Yes" : "No"}`);
+    console.log(`    Verbose: ${this.config.verbose ? "Yes" : "No"}`);
+    console.log(`    Panic on Error: ${this.config.panicOnError ? "Yes" : "No"}`);
+    console.log(`    I/O Timeout: ${this.config.ioTimeout}ms`);
+
+    if (this.config.command === "replicate") {
+      console.log(`    Permanent Delete: ${this.config.permaDelete ? "Yes" : "No"}`);
+    }
+
     console.log("─".repeat(80));
   }
 
@@ -426,6 +503,39 @@ class DisplayService {
     const ellipsis = "...";
     const partLength = Math.floor((maxLength - ellipsis.length) / 2);
     return fileName.substring(0, partLength) + ellipsis + fileName.substring(fileName.length - partLength);
+  }
+
+  public promptForKeyPress(): Promise<void> {
+    // Skip keypress wait if not in TTY mode (e.g., in tests, CI, or piped output)
+    // Check if we're in TTY mode
+    if (!isTTY()) {
+      return Promise.resolve();
+    }
+
+    console.log("\n");
+    console.log("Press any key to continue, or Ctrl+C to exit...");
+
+    return new Promise((resolve) => {
+      // Set raw mode to capture single keypress
+      readline.emitKeypressEvents(process.stdin);
+      if (isStdinTTY()) {
+        process.stdin.setRawMode(true);
+      }
+
+      const onKeyPress = () => {
+        // Restore normal mode
+        if (isStdinTTY()) {
+          process.stdin.setRawMode(false);
+        }
+        process.stdin.removeListener("keypress", onKeyPress);
+        process.stdin.pause();
+
+        resolve();
+      };
+
+      process.stdin.on("keypress", onKeyPress);
+      process.stdin.resume();
+    });
   }
 }
 
