@@ -6,6 +6,10 @@ import * as readline from "readline";
 import { isTTY, isStdinTTY } from "../utility/terminal-utils.js";
 import * as path from "path";
 
+const BAR_SIZE = 20;
+const CONSOLE_WIDTH = 80;
+const MAX_FILE_NAME_LENGTH = CONSOLE_WIDTH - BAR_SIZE - 10;
+
 /**
  * Display service for managing in-place UI updates and progress display
  */
@@ -77,6 +81,7 @@ class DisplayService {
         barCompleteChar: "\u2588",
         barIncompleteChar: "\u2591",
         stopOnComplete: true,
+        barsize: 20,
       },
       cliProgress.Presets.shades_classic
     );
@@ -97,11 +102,11 @@ class DisplayService {
   private printHeader(): void {
     if (!this.config) return;
 
-    console.log("═".repeat(80));
+    console.log("═".repeat(CONSOLE_WIDTH));
     console.log(`  ${this.title}`);
-    console.log("═".repeat(80));
+    console.log("═".repeat(CONSOLE_WIDTH));
     console.log(`  Command: ${this.command}`);
-    console.log("─".repeat(80));
+    console.log("─".repeat(CONSOLE_WIDTH));
 
     // Command-specific information
     switch (this.config.command) {
@@ -150,7 +155,7 @@ class DisplayService {
     }
 
     // Common configuration options
-    console.log("─".repeat(80));
+    console.log("─".repeat(CONSOLE_WIDTH));
     console.log(`  Configuration:`);
     console.log(`    Hash Algorithm: ${this.config.hashAlgorithm.toUpperCase()}`);
     console.log(`    Dry Run: ${this.config.dryRun ? "Yes" : "No"}`);
@@ -162,7 +167,7 @@ class DisplayService {
       console.log(`    Permanent Delete: ${this.config.permaDelete ? "Yes" : "No"}`);
     }
 
-    console.log("─".repeat(80));
+    console.log("─".repeat(CONSOLE_WIDTH));
   }
 
   /**
@@ -186,7 +191,7 @@ class DisplayService {
     if (!this.fileBar || !this.isActive) return;
 
     const percentage = total > 0 ? Math.floor((current / total) * 100) : 0;
-    const displayName = fileName ? this.truncateFileName(fileName, 40) : "Processing...";
+    const displayName = fileName ? this.truncateFileName(fileName, MAX_FILE_NAME_LENGTH) : "Processing...";
     this.fileBar.update(percentage, {
       label: displayName,
       value: current,
@@ -269,6 +274,7 @@ class DisplayService {
       spinner: this.spinnerFrames[0],
       directory: "Initializing...",
       count: "0",
+      barsize: 20,
     });
 
     // Start spinner animation
@@ -290,7 +296,7 @@ class DisplayService {
   public updateDiscoveryProgress(fileCount: number, currentDir: string): void {
     if (!this.isActive || !this.discoveryMode || !this.discoveryBar) return;
 
-    const truncatedDir = this.truncateFileName(currentDir, 45);
+    const truncatedDir = this.truncateFileName(currentDir, MAX_FILE_NAME_LENGTH);
 
     // Update discovery bar with current info
     this.discoveryBar.update(0, {
@@ -337,10 +343,10 @@ class DisplayService {
 
     // Display final stats (only in TTY mode)
     if (isTTY()) {
-      console.log("─".repeat(80));
+      console.log("─".repeat(CONSOLE_WIDTH));
       console.log("SUMMARY:");
       this.statsLines.forEach((line) => console.log(`  ${line}`));
-      console.log("═".repeat(80));
+      console.log("═".repeat(CONSOLE_WIDTH));
     }
 
     this.isActive = false;
@@ -408,11 +414,11 @@ class DisplayService {
     const runningTime = this.getFormattedRunningTime(executionResult.startedEpoch, executionResult.completedEpoch);
     const bytesProcessed = this.formatBytes(executionResult.totalBytesProcessed);
 
-    logger.log("=".repeat(80));
+    logger.log("=".repeat(CONSOLE_WIDTH));
     logger.log(
       `${executionResult.command.toUpperCase()} Operation ${executionResult.success ? "COMPLETED" : "FAILED"}`
     );
-    logger.log("=".repeat(80));
+    logger.log("=".repeat(CONSOLE_WIDTH));
 
     // Common stats
     logger.log(`Total Files Processed: ${executionResult.totalFilesProcessed}`);
@@ -459,7 +465,7 @@ class DisplayService {
       logger.logNegative(`\n${executionResult.errors.length} errors encountered. Run with --verbose to see details.`);
     }
 
-    logger.log("=".repeat(80));
+    logger.log("=".repeat(CONSOLE_WIDTH));
 
     if (executionResult.success) {
       logger.log("Operation completed successfully");
@@ -467,7 +473,7 @@ class DisplayService {
       logger.logNegative("Operation completed with errors");
     }
 
-    logger.log("=".repeat(80));
+    logger.log("=".repeat(CONSOLE_WIDTH));
   }
 
   /**
