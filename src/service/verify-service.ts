@@ -7,6 +7,7 @@ import { cryptoService } from "./crypto-service.js";
 import { displayService } from "./display-service.js";
 import { errorService } from "./error-service.js";
 import { isInSubdirectory } from "../utility/path-utils.js";
+import { getFileSystemErrorMessage } from "../utility/error-utils.js";
 import path from "path";
 import fs from "fs";
 
@@ -191,28 +192,50 @@ class VerifyService {
     expectedSize: number,
     hashAlgorithm: "sha256"
   ): Promise<{ success: boolean; reason?: string }> {
-    // Check file exists
-    if (!fs.existsSync(filePath)) {
-      return { success: false, reason: "File does not exist" };
-    }
+    try {
+      // Check file exists
+      if (!fs.existsSync(filePath)) {
+        return { success: false, reason: "File does not exist" };
+      }
 
-    // Check size
-    const stats = fs.statSync(filePath);
-    if (stats.size !== expectedSize) {
-      return { success: false, reason: `Size mismatch (expected: ${expectedSize}, actual: ${stats.size})` };
-    }
+      // Check size
+      let stats;
+      try {
+        stats = fs.statSync(filePath);
+      } catch (error) {
+        const err = error as NodeJS.ErrnoException;
+        const errorMsg = getFileSystemErrorMessage(err, `Failed to read file stats: ${filePath}`);
+        return { success: false, reason: errorMsg };
+      }
 
-    // Check hash
-    const fileName = path.basename(filePath);
-    const actualHash = await cryptoService.hashFile(filePath, hashAlgorithm, (bytesRead, total) => {
-      const percentage = Math.floor((bytesRead / total) * 100);
-      displayService.updateFileProgress(percentage, 100, fileName);
-    });
-    if (actualHash !== expectedHash) {
-      return { success: false, reason: `Hash mismatch` };
-    }
+      if (stats.size !== expectedSize) {
+        return { success: false, reason: `Size mismatch (expected: ${expectedSize}, actual: ${stats.size})` };
+      }
 
-    return { success: true };
+      // Check hash
+      const fileName = path.basename(filePath);
+      let actualHash;
+      try {
+        actualHash = await cryptoService.hashFile(filePath, hashAlgorithm, (bytesRead, total) => {
+          const percentage = Math.floor((bytesRead / total) * 100);
+          displayService.updateFileProgress(percentage, 100, fileName);
+        });
+      } catch (error) {
+        const err = error as NodeJS.ErrnoException;
+        const errorMsg = getFileSystemErrorMessage(err, `Failed to hash file: ${filePath}`);
+        return { success: false, reason: errorMsg };
+      }
+
+      if (actualHash !== expectedHash) {
+        return { success: false, reason: `Hash mismatch` };
+      }
+
+      return { success: true };
+    } catch (error) {
+      const err = error as NodeJS.ErrnoException;
+      const errorMsg = getFileSystemErrorMessage(err, `Error verifying file: ${filePath}`);
+      return { success: false, reason: errorMsg };
+    }
   }
 }
 

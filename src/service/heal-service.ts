@@ -7,6 +7,7 @@ import { fileService } from "./file-service.js";
 import { displayService } from "./display-service.js";
 import { errorService } from "./error-service.js";
 import { joinPath } from "../utility/path-utils.js";
+import { getFileSystemErrorMessage } from "../utility/error-utils.js";
 import path from "path";
 import fs from "fs";
 import { promises as fsPromises } from "fs";
@@ -191,7 +192,9 @@ class HealService {
 
         logger.log(`(heal-service)> File needs healing: ${relativePath}`);
       } catch (error) {
-        logger.logNegative(`(heal-service)> Error checking file: ${relativePath}`);
+        const err = error as NodeJS.ErrnoException;
+        const errorMsg = getFileSystemErrorMessage(err, `Error checking file: ${relativePath}`);
+        logger.logNegative(`(heal-service)> ${errorMsg}`);
       }
     } else {
       logger.log(`(heal-service)> File missing: ${relativePath}`);
@@ -203,11 +206,12 @@ class HealService {
 
       // Check if mirror file exists
       if (!fs.existsSync(mirrorPath)) {
+        logger.debug(`(heal-service)> Mirror file not found: ${mirrorPath}`);
         continue;
       }
 
       try {
-        // Verify mirror integrity
+        // Verify mirror integrity (READ operation - can try next mirror on error)
         const mirrorStats = fs.statSync(mirrorPath);
         if (mirrorStats.size !== expectedSize) {
           logger.logNegative(`(heal-service)> Mirror size mismatch: ${mirrorPath}`);
@@ -225,25 +229,59 @@ class HealService {
 
         // Mirror is valid, copy to target
         if (!dryRun) {
-          // Ensure target directory exists
+          // Ensure target directory exists (WRITE operation - fail immediately on error)
           const targetDirPath = path.dirname(targetPath);
-          await fsPromises.mkdir(targetDirPath, { recursive: true });
 
-          // Copy file with progress
-          await fileService.copyLargeFile(mirrorPath, targetPath, (bytesRead, totalBytes) => {
-            const percentage = Math.floor((bytesRead / totalBytes) * 100);
-            displayService.updateFileProgress(percentage, 100, `[Heal] ${relativePath}`);
-          });
+          // Check for potentially problematic characters in path (e.g., colons on FAT32/exFAT)
+          if (targetDirPath.includes(":")) {
+            // Colon detected - may fail on FAT32/exFAT filesystems
+            logger.debug(`(heal-service)> Warning: Path contains colon, may fail on FAT32/exFAT: ${targetDirPath}`);
+          }
 
-          // Verify copy if validation is enabled
-          if (validatePostCopy) {
-            const copiedHash = await cryptoService.hashFile(targetPath, hashAlgorithm, (bytesRead, total) => {
-              const percentage = Math.floor((bytesRead / total) * 100);
-              displayService.updateFileProgress(percentage, 100, `[Validate] ${relativePath}`);
+          try {
+            await fsPromises.mkdir(targetDirPath, { recursive: true });
+          } catch (error) {
+            const err = error as NodeJS.ErrnoException;
+            // Include file path in error for context
+            let errorMsg = getFileSystemErrorMessage(
+              err,
+              `Failed to create target directory for file ${relativePath}: ${targetDirPath}`
+            );
+
+            // If path contains colon and we got ENOENT, suggest filesystem limitation
+            if (err.code === "ENOENT" && (targetDirPath.includes(":") || relativePath.includes(":"))) {
+              errorMsg += " (Note: Colons in filenames are not supported on FAT32/exFAT filesystems)";
+            }
+
+            return { verified: false, healed: false, reason: errorMsg };
+          }
+
+          // Copy file with progress (WRITE operation - fail immediately on error)
+          try {
+            await fileService.copyLargeFile(mirrorPath, targetPath, (bytesRead, totalBytes) => {
+              const percentage = Math.floor((bytesRead / totalBytes) * 100);
+              displayService.updateFileProgress(percentage, 100, `[Heal] ${relativePath}`);
             });
-            if (copiedHash !== expectedHash) {
-              logger.logNegative(`(heal-service)> Copy verification failed: ${relativePath}`);
-              continue;
+          } catch (error) {
+            const err = error as NodeJS.ErrnoException;
+            const errorMsg = getFileSystemErrorMessage(err, `Failed to copy file from ${mirrorPath} to ${targetPath}`);
+            return { verified: false, healed: false, reason: errorMsg };
+          }
+
+          // Verify copy if validation is enabled (READ operation on target - fail immediately as it's post-write)
+          if (validatePostCopy) {
+            try {
+              const copiedHash = await cryptoService.hashFile(targetPath, hashAlgorithm, (bytesRead, total) => {
+                const percentage = Math.floor((bytesRead / total) * 100);
+                displayService.updateFileProgress(percentage, 100, `[Validate] ${relativePath}`);
+              });
+              if (copiedHash !== expectedHash) {
+                return { verified: false, healed: false, reason: "Copy verification failed" };
+              }
+            } catch (error) {
+              const err = error as NodeJS.ErrnoException;
+              const errorMsg = getFileSystemErrorMessage(err, `Failed to verify copied file: ${targetPath}`);
+              return { verified: false, healed: false, reason: errorMsg };
             }
           }
         }
@@ -251,11 +289,15 @@ class HealService {
         logger.debug(`(heal-service)> Successfully healed from mirror: ${mirror.dir}`);
         return { verified: false, healed: true };
       } catch (error) {
-        logger.logNegative(`(heal-service)> Error copying from mirror ${mirrorPath}: ${(error as Error).message}`);
+        // READ error from mirror - log and try next mirror
+        const err = error as NodeJS.ErrnoException;
+        const errorMsg = getFileSystemErrorMessage(err, `Error reading from mirror: ${mirrorPath}`);
+        logger.logNegative(`(heal-service)> Error reading from ${mirrorPath}: ${errorMsg}`);
         continue;
       }
     }
 
+    // All mirrors exhausted
     return { verified: false, healed: false, reason: "No valid mirror found" };
   }
 }
