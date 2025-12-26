@@ -11,6 +11,8 @@ import { getRelativePath, isIgnoredPath } from "../utility/path-utils.js";
  * Updated for v2: Ignores .fs-recycle, symlinks, and special files
  */
 class DiscoveryService {
+  private discoveryCount = 0;
+
   /**
    * Discovers all regular files in a directory, excluding:
    * - .fs-recycle directory
@@ -72,6 +74,13 @@ class DiscoveryService {
     }
 
     for (const child of childList) {
+      this.discoveryCount++;
+      if (this.discoveryCount % 100 === 0) {
+        // Sleep for 0ms to avoid overwhelming the system
+        await new Promise((resolve) => setTimeout(resolve, 0));
+        logger.debug(`(discovery-service)> Discovered ${this.discoveryCount} files. Current directory: ${currentDir}`);
+      }
+
       try {
         const childPath = path.join(currentDir, child);
 
