@@ -16,6 +16,17 @@ if (config.noTty) {
 // Set logger verbosity
 logger.setVerbosity(config.verbose);
 
+// Handle SIGINT (Ctrl+C) to flush buffered logs before exiting
+process.on("SIGINT", () => {
+  const bufferedCount = logger.getBufferedLogCount();
+  if (bufferedCount > 0) {
+    console.log("\n");
+    console.log("Interrupted by user. Flushing buffered logs...");
+    logger.flushBufferedLogs();
+  }
+  process.exit(130); // Standard exit code for SIGINT
+});
+
 logger.debug("(start)> Configuration:", config);
 
 // Execute program and handle exit code

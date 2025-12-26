@@ -10,6 +10,10 @@ const BAR_SIZE = 20;
 const CONSOLE_WIDTH = 80;
 const MAX_FILE_NAME_LENGTH = CONSOLE_WIDTH - BAR_SIZE - 10;
 
+let nonTtyTaskPublishedAt = 0;
+let nonTtyFilePublishedAt = 0;
+const NON_TTY_PUBLISH_INTERVAL = 5_000;
+
 /**
  * Display service for managing in-place UI updates and progress display
  */
@@ -174,7 +178,15 @@ class DisplayService {
    * Updates task progress
    */
   public updateTaskProgress(current: number, total: number, label?: string): void {
-    if (!this.taskBar || !this.isActive) return;
+    if (!this.isActive) return;
+
+    if (!isTTY() && Date.now() - nonTtyTaskPublishedAt > NON_TTY_PUBLISH_INTERVAL) {
+      logger.log(`(display-service)> Task progress: ${current}/${total} ${label}`);
+      nonTtyTaskPublishedAt = Date.now();
+      return;
+    }
+
+    if (!this.taskBar) return;
 
     const percentage = total > 0 ? Math.floor((current / total) * 100) : 0;
     this.taskBar.update(percentage, {
@@ -188,7 +200,15 @@ class DisplayService {
    * Updates current file progress
    */
   public updateFileProgress(current: number, total: number, fileName?: string): void {
-    if (!this.fileBar || !this.isActive) return;
+    if (!this.isActive) return;
+
+    if (!isTTY() && Date.now() - nonTtyFilePublishedAt > NON_TTY_PUBLISH_INTERVAL) {
+      logger.log(`(display-service)> File progress: ${current}/${total} ${fileName}`);
+      nonTtyFilePublishedAt = Date.now();
+      return;
+    }
+
+    if (!this.fileBar) return;
 
     const percentage = total > 0 ? Math.floor((current / total) * 100) : 0;
     const displayName = fileName ? this.truncateFileName(fileName, MAX_FILE_NAME_LENGTH) : "Processing...";
