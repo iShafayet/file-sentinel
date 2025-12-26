@@ -21,6 +21,7 @@ export function parseArgs(argv?: string[]): Config {
       "-i, --input <dir::digest>",
       "Input directory and digest file (format: /path/to/dir::/path/to/digest.db)"
     )
+    .option("-s, --subdirectory <path>", "Subdirectory to digest")
     .option("-a, --hash-algorithm <algo>", "Hash algorithm", "sha256")
     .option("--verbose", "Verbose output", false)
     .option("--panic-on-error", "Exit on first error", false)
@@ -33,6 +34,7 @@ export function parseArgs(argv?: string[]): Config {
         command: "digest",
         inputDir: dir,
         digestFile: digestFile,
+        subdirectory: options.subdirectory || null,
         hashAlgorithm: options.hashAlgorithm as "sha256",
         verbose: options.verbose,
         panicOnError: options.panicOnError,
@@ -165,7 +167,7 @@ export function parseArgs(argv?: string[]): Config {
         digestFile: digestFile,
         subdirectory: options.subdirectory || null,
         mirrors: options.mirror,
-        validatePostCopy: options.noValidatePostCopy ? false : (options.validatePostCopy ?? true), // Default to true unless --no-validate-post-copy is used
+        validatePostCopy: options.noValidatePostCopy ? false : options.validatePostCopy ?? true, // Default to true unless --no-validate-post-copy is used
         hashAlgorithm: options.hashAlgorithm as "sha256",
         verbose: options.verbose,
         panicOnError: options.panicOnError,
@@ -182,6 +184,7 @@ export function parseArgs(argv?: string[]): Config {
     .description("Compare two digests and predict what a replicate operation would do")
     .requiredOption("--local <digest-file>", "Local digest file path (source)")
     .requiredOption("--remote <digest-file>", "Remote digest file path (destination)")
+    .option("-s, --subdirectory <path>", "Subdirectory to compare")
     .option("--verbose", "Verbose output", false)
     .option("--panic-on-error", "Exit on first error", false)
     .option("--dry-run", "Simulate without writing", false)
@@ -192,6 +195,7 @@ export function parseArgs(argv?: string[]): Config {
         command: "compare",
         localDigestFile: options.local,
         remoteDigestFile: options.remote,
+        subdirectory: options.subdirectory || null,
         verbose: options.verbose,
         panicOnError: options.panicOnError,
         dryRun: options.dryRun,
