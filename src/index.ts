@@ -4,7 +4,7 @@ import { sanityService } from "./service/sanity-service.js";
 import { coreService } from "./service/core-service.js";
 import { displayService } from "./service/display-service.js";
 import { ExecutionResult } from "./model/execution-results.js";
-import { getVersion } from "./utility/misc-utils.js";
+import { applyTtyAndVerbosityGlobally, getVersion } from "./utility/misc-utils.js";
 
 /**
  * Main program entry point
@@ -18,6 +18,9 @@ export class FileSentinelProgram {
   public async execute(config: Config): Promise<ExecutionResult> {
     try {
       this.config = config;
+
+      applyTtyAndVerbosityGlobally(this.config);
+
       await this.initialize();
       return await this.run();
     } catch (ex) {

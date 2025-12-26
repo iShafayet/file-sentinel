@@ -2,21 +2,18 @@ import { readFileSync } from "fs";
 import { fileURLToPath } from "url";
 import { dirname, join } from "path";
 import { DeveloperError } from "./coded-error.js";
+import { logger } from "../lib/logger.js";
+import { forceNonTTYMode } from "./terminal-utils.js";
+import { Config } from "../model/config.js";
 
 function extract(object: any, keyList: string[]) {
   if (typeof object !== "object" || object === null) {
-    throw new DeveloperError(
-      "GENERIC_OBJECT_NOT_OBJECT",
-      "Expected object to be an object"
-    );
+    throw new DeveloperError("GENERIC_OBJECT_NOT_OBJECT", "Expected object to be an object");
   }
   let newObject: any = {};
   for (let key of keyList) {
     if (!object.hasOwnProperty(key)) {
-      throw new DeveloperError(
-        "GENERIC_OBJECT_KEY_MISSING",
-        `Expected object to have key "${key}"`
-      );
+      throw new DeveloperError("GENERIC_OBJECT_KEY_MISSING", `Expected object to have key "${key}"`);
     }
     newObject[key] = object[key];
   }
@@ -50,4 +47,16 @@ function getVersion(): string {
   return packageJson.version;
 }
 
-export { extract, strip, getVersion };
+function applyTtyAndVerbosityGlobally(config: Config): void {
+  // Set logger verbosity
+  logger.setVerbosity(config.verbose);
+  logger.debug("(misc-utils)> Verbosity set to:", config.verbose);
+
+  // Force non-TTY mode if requested
+  if (config.noTty) {
+    logger.debug("(misc-utils)> Forcing non-TTY mode");
+    forceNonTTYMode();
+  }
+}
+
+export { extract, strip, getVersion, applyTtyAndVerbosityGlobally };
