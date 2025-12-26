@@ -32,6 +32,7 @@ class DigestService {
     logger.log("=".repeat(80));
     logger.log(`Input Directory: ${config.inputDir}`);
     logger.log(`Digest File: ${config.digestFile}`);
+    logger.log(`Subdirectory: ${config.subdirectory || "(entire directory)"}`);
     logger.log(`Hash Algorithm: ${config.hashAlgorithm}`);
     logger.log(`Dry Run: ${config.dryRun}`);
 
@@ -48,12 +49,12 @@ class DigestService {
         logger.log("(digest-service)> Database opened successfully");
       }
 
-      // Discover all files with progress
+      // Discover files with progress (filtered by subdirectory if specified)
       logger.log("(digest-service)> Discovering files...");
       displayService.startDiscovery();
       const discoveredFiles = await discoveryService.discoverFiles(
         config.inputDir,
-        null,
+        config.subdirectory,
         result,
         (fileCount, currentDir) => {
           displayService.updateDiscoveryProgress(fileCount, currentDir);
@@ -62,11 +63,11 @@ class DigestService {
       displayService.stopDiscovery();
       logger.log(`(digest-service)> Discovered ${discoveredFiles.length} files`);
 
-      // Get existing files from database
+      // Get existing files from database (filtered by subdirectory if specified)
       const existingFileMap = new Map<string, { hash: string; size: number; mtime: number }>();
 
       if (!config.dryRun && db.isOpen()) {
-        const existingFiles = db.getAllFiles();
+        const existingFiles = config.subdirectory ? db.getFilesInSubdirectory(config.subdirectory) : db.getAllFiles();
         for (const file of existingFiles) {
           existingFileMap.set(file.relative_path, {
             hash: file.hash_sha256,
@@ -74,7 +75,11 @@ class DigestService {
             mtime: file.modified_at,
           });
         }
-        logger.log(`(digest-service)> Found ${existingFileMap.size} existing entries in digest`);
+        logger.log(
+          `(digest-service)> Found ${existingFileMap.size} existing entries in digest${
+            config.subdirectory ? ` (subdirectory: ${config.subdirectory})` : ""
+          }`
+        );
       }
 
       // Process each discovered file

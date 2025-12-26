@@ -25,6 +25,7 @@ describe("Large File Tests - v2", (): void => {
       command: "digest",
       inputDir: dataDir,
       digestFile: digestFile,
+      subdirectory: null,
       hashAlgorithm: "sha256",
       verbose: true,
       panicOnError: true,

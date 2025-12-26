@@ -18,6 +18,7 @@ export type DigestConfig = BaseConfig & {
   command: "digest";
   inputDir: string;
   digestFile: string;
+  subdirectory: string | null;
 };
 
 // Verify command config
@@ -56,6 +57,7 @@ export type CompareConfig = BaseConfig & {
   command: "compare";
   localDigestFile: string;
   remoteDigestFile: string;
+  subdirectory: string | null;
 };
 
 // Union type for all configs
@@ -74,6 +76,7 @@ export const DigestConfigSchema = Joi.object({
   command: Joi.string().valid("digest").required(),
   inputDir: Joi.string().required(),
   digestFile: Joi.string().required(),
+  subdirectory: Joi.string().allow(null).required(),
   ...baseConfigSchema,
 });
 
@@ -127,6 +130,7 @@ export const CompareConfigSchema = Joi.object({
   command: Joi.string().valid("compare").required(),
   localDigestFile: Joi.string().required(),
   remoteDigestFile: Joi.string().required(),
+  subdirectory: Joi.string().allow(null).required(),
   ...baseConfigSchema,
 });
 

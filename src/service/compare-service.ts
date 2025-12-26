@@ -30,6 +30,7 @@ class CompareService {
     logger.log("=".repeat(80));
     logger.log(`Local Digest File: ${config.localDigestFile} (source)`);
     logger.log(`Remote Digest File: ${config.remoteDigestFile} (destination)`);
+    logger.log(`Subdirectory: ${config.subdirectory || "(entire directory)"}`);
     logger.log(`Dry Run: ${config.dryRun}`);
 
     const localDb = new DatabaseService();
@@ -51,9 +52,13 @@ class CompareService {
       remoteDb.open(config.remoteDigestFile);
       logger.log("(compare-service)> Remote database opened successfully");
 
-      // Get all files from both databases
-      const localFiles = localDb.getAllFiles();
-      const remoteFiles = remoteDb.getAllFiles();
+      // Get files from both databases (filtered by subdirectory if specified)
+      const localFiles = config.subdirectory
+        ? localDb.getFilesInSubdirectory(config.subdirectory)
+        : localDb.getAllFiles();
+      const remoteFiles = config.subdirectory
+        ? remoteDb.getFilesInSubdirectory(config.subdirectory)
+        : remoteDb.getAllFiles();
 
       logger.log(`(compare-service)> Found ${localFiles.length} files in local digest`);
       logger.log(`(compare-service)> Found ${remoteFiles.length} files in remote digest`);
