@@ -87,7 +87,8 @@ class HealService {
             config.inputDir,
             config.mirrors,
             config.hashAlgorithm,
-            config.dryRun
+            config.dryRun,
+            config.validatePostCopy
           );
 
           if (healResult.healed) {
@@ -165,7 +166,8 @@ class HealService {
     targetDir: string,
     mirrors: Array<{ dir: string; digestFile: string }>,
     hashAlgorithm: "sha256",
-    dryRun: boolean
+    dryRun: boolean,
+    validatePostCopy: boolean
   ): Promise<{ verified: boolean; healed: boolean; reason?: string }> {
     const targetPath = joinPath(targetDir, relativePath);
 
@@ -233,14 +235,16 @@ class HealService {
             displayService.updateFileProgress(percentage, 100, `[Heal] ${relativePath}`);
           });
 
-          // Verify copy
-          const copiedHash = await cryptoService.hashFile(targetPath, hashAlgorithm, (bytesRead, total) => {
-            const percentage = Math.floor((bytesRead / total) * 100);
-            displayService.updateFileProgress(percentage, 100, `[Validate] ${relativePath}`);
-          });
-          if (copiedHash !== expectedHash) {
-            logger.logNegative(`(heal-service)> Copy verification failed: ${relativePath}`);
-            continue;
+          // Verify copy if validation is enabled
+          if (validatePostCopy) {
+            const copiedHash = await cryptoService.hashFile(targetPath, hashAlgorithm, (bytesRead, total) => {
+              const percentage = Math.floor((bytesRead / total) * 100);
+              displayService.updateFileProgress(percentage, 100, `[Validate] ${relativePath}`);
+            });
+            if (copiedHash !== expectedHash) {
+              logger.logNegative(`(heal-service)> Copy verification failed: ${relativePath}`);
+              continue;
+            }
           }
         }
 

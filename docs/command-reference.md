@@ -406,6 +406,40 @@ file-sentinel replicate \
 
 **Default behavior**: Files are moved to `.fs-recycle` directory.
 
+#### --validate-post-copy
+
+Enable validation of copied files after replication by verifying their hash (default: enabled).
+
+```bash
+file-sentinel replicate \
+  -i ~/source::~/source.db \
+  -o ~/dest::~/dest.db \
+  --validate-post-copy
+```
+
+To disable validation (faster but less safe):
+
+```bash
+file-sentinel replicate \
+  -i ~/source::~/source.db \
+  -o ~/dest::~/dest.db \
+  --no-validate-post-copy
+```
+
+**Default behavior**: Validation is enabled by default. Each copied file is hashed and compared to ensure integrity.
+
+**Use `--no-validate-post-copy` when**:
+
+- Performance is critical and you trust the copy operation
+- Working with very large files where validation would take significant time
+- You've already verified the source files are correct
+
+**Keep validation enabled when**:
+
+- Data integrity is critical
+- Working with important or irreplaceable files
+- You want to catch any copy errors immediately
+
 #### -a, --hash-algorithm <algorithm>
 
 Specify the hashing algorithm (default: sha256).
@@ -549,13 +583,47 @@ file-sentinel heal \
   -a sha256
 ```
 
+#### --validate-post-copy
+
+Enable validation of copied files after healing by verifying their hash (default: enabled).
+
+```bash
+file-sentinel heal \
+  -i ~/Documents::~/docs.db \
+  --mirror /backup/Documents::/backup/docs.db \
+  --validate-post-copy
+```
+
+To disable validation (faster but less safe):
+
+```bash
+file-sentinel heal \
+  -i ~/Documents::~/docs.db \
+  --mirror /backup/Documents::/backup/docs.db \
+  --no-validate-post-copy
+```
+
+**Default behavior**: Validation is enabled by default. Each healed file is hashed and compared to ensure integrity.
+
+**Use `--no-validate-post-copy` when**:
+
+- Performance is critical and you trust the healing operation
+- Working with very large files where validation would take significant time
+- You've already verified the mirror files are correct
+
+**Keep validation enabled when**:
+
+- Data integrity is critical
+- Working with important or irreplaceable files
+- You want to catch any copy errors immediately
+
 ### What It Does
 
 1. **Reads digest** - Gets expected state of all files
 2. **Verifies each file** - Checks if file exists and matches hash
 3. **Identifies problems** - Finds corrupted or missing files
 4. **Tries mirrors** - Attempts to copy from each mirror sequentially
-5. **Verifies copy** - Ensures recovered file matches expected hash
+5. **Verifies copy** - Ensures recovered file matches expected hash (unless `--no-validate-post-copy` is used)
 6. **Reports results** - Shows healed, verified, and failed files
 
 ### Output

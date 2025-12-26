@@ -328,13 +328,15 @@ class ReplicateService {
             displayService.updateFileProgress(percentage, 100, `[Copy] ${relativePath}`);
           });
 
-          // Verify copy
-          const copiedHash = await cryptoService.hashFile(destPath, config.hashAlgorithm, (bytesRead, total) => {
-            const percentage = Math.floor((bytesRead / total) * 100);
-            displayService.updateFileProgress(percentage, 100, `[Validate] ${relativePath}`);
-          });
-          if (copiedHash !== expectedHash) {
-            return { success: false, reason: "Copy verification failed" };
+          // Verify copy if validation is enabled
+          if (config.validatePostCopy) {
+            const copiedHash = await cryptoService.hashFile(destPath, config.hashAlgorithm, (bytesRead, total) => {
+              const percentage = Math.floor((bytesRead / total) * 100);
+              displayService.updateFileProgress(percentage, 100, `[Validate] ${relativePath}`);
+            });
+            if (copiedHash !== expectedHash) {
+              return { success: false, reason: "Copy verification failed" };
+            }
           }
         }
 

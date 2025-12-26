@@ -38,6 +38,7 @@ export type ReplicateConfig = BaseConfig & {
   subdirectory: string | null;
   mirrors: Array<{ dir: string; digestFile: string }>;
   permaDelete: boolean;
+  validatePostCopy: boolean;
 };
 
 // Heal command config
@@ -47,6 +48,7 @@ export type HealConfig = BaseConfig & {
   digestFile: string;
   subdirectory: string | null;
   mirrors: Array<{ dir: string; digestFile: string }>;
+  validatePostCopy: boolean;
 };
 
 // Union type for all configs
@@ -92,6 +94,7 @@ export const ReplicateConfigSchema = Joi.object({
     )
     .required(),
   permaDelete: Joi.boolean().required(),
+  validatePostCopy: Joi.boolean().required(),
   ...baseConfigSchema,
 });
 
@@ -109,6 +112,7 @@ export const HealConfigSchema = Joi.object({
     )
     .min(1)
     .required(),
+  validatePostCopy: Joi.boolean().required(),
   ...baseConfigSchema,
 });
 
