@@ -27,7 +27,7 @@ describe("Basic Digest Tests - v2", (): void => {
       verbose: true,
       panicOnError: true,
       dryRun: false,
-      noTTY: false,
+      noTty: false,
       ioTimeout: 30,
     };
 
@@ -60,7 +60,7 @@ describe("Basic Digest Tests - v2", (): void => {
       verbose: true,
       panicOnError: true,
       dryRun: false,
-      noTTY: false,
+      noTty: false,
       ioTimeout: 30,
     };
 
@@ -91,7 +91,7 @@ describe("Basic Digest Tests - v2", (): void => {
       verbose: true,
       panicOnError: true,
       dryRun: false,
-      noTTY: false,
+      noTty: false,
       ioTimeout: 30,
     };
 
@@ -119,7 +119,7 @@ describe("Basic Verify Tests - v2", (): void => {
       verbose: true,
       panicOnError: true,
       dryRun: false,
-      noTTY: false,
+      noTty: false,
       ioTimeout: 30,
     };
 
@@ -151,7 +151,7 @@ describe("Basic Verify Tests - v2", (): void => {
       verbose: false,
       panicOnError: false,
       dryRun: false,
-      noTTY: false,
+      noTty: false,
       ioTimeout: 30,
     };
 
@@ -183,7 +183,7 @@ describe("Basic Verify Tests - v2", (): void => {
       verbose: false,
       panicOnError: false,
       dryRun: false,
-      noTTY: false,
+      noTty: false,
       ioTimeout: 30,
     };
 
@@ -213,7 +213,7 @@ describe("Basic Replicate Tests - v2", (): void => {
       verbose: false,
       panicOnError: true,
       dryRun: false,
-      noTTY: false,
+      noTty: false,
       ioTimeout: 30,
     };
 
@@ -243,7 +243,7 @@ describe("Basic Replicate Tests - v2", (): void => {
       verbose: true,
       panicOnError: true,
       dryRun: false,
-      noTTY: false,
+      noTty: false,
       ioTimeout: 30,
     };
 
@@ -278,7 +278,7 @@ describe("Basic Heal Tests - v2", (): void => {
       verbose: false,
       panicOnError: true,
       dryRun: false,
-      noTTY: false,
+      noTty: false,
       ioTimeout: 30,
     };
 
@@ -311,7 +311,7 @@ describe("Basic Heal Tests - v2", (): void => {
       verbose: true,
       panicOnError: false,
       dryRun: false,
-      noTTY: false,
+      noTty: false,
       ioTimeout: 30,
     };
 
