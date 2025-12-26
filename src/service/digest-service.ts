@@ -25,7 +25,7 @@ class DigestService {
 
     // Enable buffering and start display
     logger.enableBuffering();
-    displayService.start("digest", config.inputDir);
+    displayService.start(config);
 
     logger.log("=".repeat(80));
     logger.log("Starting Digest Operation");

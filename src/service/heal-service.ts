@@ -26,7 +26,7 @@ class HealService {
 
     // Enable buffering and start display
     logger.enableBuffering();
-    displayService.start("heal", config.inputDir);
+    displayService.start(config);
 
     logger.log("=".repeat(80));
     logger.log("Starting Heal Operation");

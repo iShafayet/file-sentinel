@@ -26,7 +26,7 @@ class VerifyService {
 
     // Enable buffering and start display
     logger.enableBuffering();
-    displayService.start("verify", config.inputDir);
+    displayService.start(config);
 
     logger.log("=".repeat(80));
     logger.log("Starting Verify Operation");

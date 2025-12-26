@@ -29,7 +29,7 @@ class ReplicateService {
 
     // Enable buffering and start display
     logger.enableBuffering();
-    displayService.start("replicate", config.sourceDir);
+    displayService.start(config);
 
     logger.log("=".repeat(80));
     logger.log("Starting Replicate Operation");
