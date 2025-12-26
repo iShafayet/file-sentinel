@@ -1,5 +1,5 @@
 import { Command } from "commander";
-import { Config, DigestConfig, VerifyConfig, ReplicateConfig, HealConfig } from "../model/config.js";
+import { Config, DigestConfig, VerifyConfig, ReplicateConfig, HealConfig, CompareConfig } from "../model/config.js";
 import { parseInputOption } from "./path-utils.js";
 import { getVersion } from "./misc-utils.js";
 
@@ -172,6 +172,32 @@ export function parseArgs(argv?: string[]): Config {
         dryRun: options.dryRun,
         noTty: !options.tty, // Commander.js inverts --no-tty to options.tty
         ioTimeout: parseInt(options.ioTimeout, 10),
+      };
+      parsedConfig = config;
+    });
+
+  // Compare command
+  program
+    .command("compare")
+    .description("Compare two digests and predict what a replicate operation would do")
+    .requiredOption("--local <digest-file>", "Local digest file path (source)")
+    .requiredOption("--remote <digest-file>", "Remote digest file path (destination)")
+    .option("--verbose", "Verbose output", false)
+    .option("--panic-on-error", "Exit on first error", false)
+    .option("--dry-run", "Simulate without writing", false)
+    .option("--no-tty", "Disable TTY mode (no colors, no interactive prompts)", true)
+    .option("-t, --io-timeout <seconds>", "IO timeout in seconds", "30")
+    .action((options) => {
+      const config: CompareConfig = {
+        command: "compare",
+        localDigestFile: options.local,
+        remoteDigestFile: options.remote,
+        verbose: options.verbose,
+        panicOnError: options.panicOnError,
+        dryRun: options.dryRun,
+        noTty: !options.tty, // Commander.js inverts --no-tty to options.tty
+        ioTimeout: parseInt(options.ioTimeout, 10),
+        hashAlgorithm: "sha256", // Not used in compare, but required by BaseConfig
       };
       parsedConfig = config;
     });

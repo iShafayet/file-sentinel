@@ -1,7 +1,7 @@
 import Joi from "joi";
 
 // Command types
-export type Command = "digest" | "verify" | "replicate" | "heal";
+export type Command = "digest" | "verify" | "replicate" | "heal" | "compare";
 
 // Base config with common options
 type BaseConfig = {
@@ -51,8 +51,15 @@ export type HealConfig = BaseConfig & {
   validatePostCopy: boolean;
 };
 
+// Compare command config
+export type CompareConfig = BaseConfig & {
+  command: "compare";
+  localDigestFile: string;
+  remoteDigestFile: string;
+};
+
 // Union type for all configs
-export type Config = DigestConfig | VerifyConfig | ReplicateConfig | HealConfig;
+export type Config = DigestConfig | VerifyConfig | ReplicateConfig | HealConfig | CompareConfig;
 
 // Validation schemas
 const baseConfigSchema = {
@@ -116,9 +123,17 @@ export const HealConfigSchema = Joi.object({
   ...baseConfigSchema,
 });
 
+export const CompareConfigSchema = Joi.object({
+  command: Joi.string().valid("compare").required(),
+  localDigestFile: Joi.string().required(),
+  remoteDigestFile: Joi.string().required(),
+  ...baseConfigSchema,
+});
+
 export const ConfigSchema = Joi.alternatives().try(
   DigestConfigSchema,
   VerifyConfigSchema,
   ReplicateConfigSchema,
-  HealConfigSchema
+  HealConfigSchema,
+  CompareConfigSchema
 );

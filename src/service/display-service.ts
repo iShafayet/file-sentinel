@@ -473,6 +473,12 @@ class DisplayService {
         logger.log(`Files Verified: ${executionResult.filesVerified || 0}`);
         logger.log(`Files Recovery Failed: ${executionResult.filesRecoveryFailed || 0}`);
         break;
+
+      case "compare":
+        logger.log(`New Files: ${executionResult.filesNew || 0}`);
+        logger.log(`Changed Files: ${executionResult.filesChanged || 0}`);
+        logger.log(`Deleted Files: ${executionResult.filesDeleted || 0}`);
+        break;
     }
 
     // Show errors if any

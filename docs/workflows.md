@@ -30,7 +30,17 @@ file-sentinel replicate \
 file-sentinel digest -i ~/Documents::~/Documents/digest.db
 ```
 
-**Step 2**: Sync changes to backup
+**Step 2** (Optional): Preview what would change
+
+```bash
+file-sentinel compare \
+  --local ~/Documents/digest.db \
+  --remote /backup/Documents/digest.db
+```
+
+This shows what files would be copied, updated, or deleted without actually performing the operation.
+
+**Step 3**: Sync changes to backup
 
 ```bash
 file-sentinel replicate \
@@ -57,6 +67,7 @@ Create multiple backup copies for redundancy.
 ### Three-Copy Strategy
 
 A good practice is to have:
+
 1. Original (working copy)
 2. Local backup (fast recovery)
 3. Off-site backup (disaster recovery)
@@ -131,10 +142,45 @@ Should now show zero failed files.
 ### If Healing Fails
 
 If a file couldn't be healed:
+
 1. Check mirror integrity: `file-sentinel verify -i /backup/Documents::/backup/digest.db`
 2. Try additional mirrors if available
 3. Manually restore from other backups
 4. Update digest if file is permanently lost
+
+## Previewing Changes Before Replication
+
+Use the compare command to see what would change before running replicate.
+
+### Why Compare First?
+
+- **Fast** - Only reads digest files, no file I/O
+- **Safe** - Preview without risk
+- **Informative** - See exactly what would be copied, updated, or deleted
+
+### Example Workflow
+
+```bash
+# 1. Update source digest after making changes
+file-sentinel digest -i ~/Documents::~/Documents/digest.db
+
+# 2. Compare to see what would change
+file-sentinel compare \
+  --local ~/Documents/digest.db \
+  --remote /backup/Documents/digest.db
+
+# 3. Review the output, then replicate if everything looks good
+file-sentinel replicate \
+  -i ~/Documents::~/Documents/digest.db \
+  -o /backup/Documents::/backup/Documents/digest.db
+```
+
+### When to Use Compare
+
+- Before large replication operations
+- When you want to verify backup state
+- To understand differences between locations
+- In automated scripts to check if replication is needed
 
 ## Incremental Backups
 
@@ -143,6 +189,7 @@ Update only what changed since last backup.
 ### How It Works
 
 File Sentinel automatically handles incremental backups:
+
 - Only changed files are copied
 - Unchanged files are skipped
 - Deleted files are removed
@@ -196,6 +243,7 @@ file-sentinel digest -i ~/Videos::~/Videos/digest.db --verbose
 ```
 
 For files > 10 MB, progress is shown every 10 seconds:
+
 ```
 (crypto-service)> Hashing "movie.mp4": 1.2 GB/4.5 GB (27%)
 ```
@@ -252,12 +300,12 @@ MIRROR_DIGEST=/backup/Documents/digest.db
 # Verify
 if ! file-sentinel verify -i $DOCS_DIR::$DOCS_DIGEST; then
     echo "Corruption detected! Attempting to heal..."
-    
+
     # Heal from mirror
     file-sentinel heal \
         -i $DOCS_DIR::$DOCS_DIGEST \
         --mirror $MIRROR_DIR::$MIRROR_DIGEST
-    
+
     # Verify again
     if file-sentinel verify -i $DOCS_DIR::$DOCS_DIGEST; then
         echo "Healing successful!"
@@ -320,6 +368,7 @@ file-sentinel replicate \
 ```
 
 This method:
+
 - Verifies source before copying
 - Creates destination digest automatically
 - Handles errors gracefully
@@ -362,16 +411,19 @@ Verify your backup system works before you need it.
 ### Test 1: Corruption Recovery
 
 1. Create a test file:
+
    ```bash
    echo "original content" > ~/Documents/test.txt
    ```
 
 2. Digest it:
+
    ```bash
    file-sentinel digest -i ~/Documents::~/Documents/digest.db
    ```
 
 3. Backup it:
+
    ```bash
    file-sentinel replicate \
      -i ~/Documents::~/Documents/digest.db \
@@ -379,16 +431,19 @@ Verify your backup system works before you need it.
    ```
 
 4. Corrupt it:
+
    ```bash
    echo "corrupted!" > ~/Documents/test.txt
    ```
 
 5. Verify corruption is detected:
+
    ```bash
    file-sentinel verify -i ~/Documents::~/Documents/digest.db
    ```
 
 6. Heal it:
+
    ```bash
    file-sentinel heal \
      -i ~/Documents::~/Documents/digest.db \
@@ -406,6 +461,7 @@ Verify your backup system works before you need it.
 Simulate complete data loss:
 
 1. Create and backup test directory:
+
    ```bash
    mkdir -p ~/test-recovery
    echo "data" > ~/test-recovery/file.txt
@@ -416,12 +472,14 @@ Simulate complete data loss:
    ```
 
 2. Delete everything:
+
    ```bash
    rm -rf ~/test-recovery
    mkdir ~/test-recovery
    ```
 
 3. Recover:
+
    ```bash
    file-sentinel replicate \
      -i /backup/test::/backup/test.db \
@@ -442,18 +500,21 @@ Keep digest files organized and up to date.
 Update digests on a schedule based on data change frequency:
 
 **Frequently changing (daily updates)**:
+
 ```bash
 # Work documents
 file-sentinel digest -i ~/Work::~/Work/digest.db
 ```
 
 **Moderate changes (weekly updates)**:
+
 ```bash
 # Personal documents
 file-sentinel digest -i ~/Documents::~/Documents/digest.db
 ```
 
 **Rarely changing (monthly verification)**:
+
 ```bash
 # Archived photos
 file-sentinel verify -i ~/Photos/Archive::~/Photos/Archive/digest.db
@@ -462,6 +523,7 @@ file-sentinel verify -i ~/Photos/Archive::~/Photos/Archive/digest.db
 ### Digest File Locations
 
 **Option 1: With the data** (simple)
+
 ```
 ~/Documents/
 ├── digest.db
@@ -470,6 +532,7 @@ file-sentinel verify -i ~/Photos/Archive::~/Photos/Archive/digest.db
 ```
 
 **Option 2: Separate directory** (organized)
+
 ```
 ~/digests/
 ├── documents.db
@@ -478,6 +541,7 @@ file-sentinel verify -i ~/Photos/Archive::~/Photos/Archive/digest.db
 ```
 
 **Option 3: With backups** (centralized)
+
 ```
 /backup/
 ├── documents/
@@ -509,16 +573,19 @@ Keep directories synchronized across multiple computers.
 ### Setup on Each Machine
 
 **Machine A** (primary):
+
 ```bash
 file-sentinel digest -i ~/Documents::~/Documents/digest.db
 ```
 
 **Machine B** (secondary):
+
 ```bash
 file-sentinel digest -i ~/Documents::~/Documents/digest.db
 ```
 
 **Shared backup** (network drive or cloud):
+
 ```bash
 file-sentinel digest -i /shared/Documents::/shared/Documents/digest.db
 ```
@@ -526,6 +593,7 @@ file-sentinel digest -i /shared/Documents::/shared/Documents/digest.db
 ### Sync Process
 
 **From Machine A to shared**:
+
 ```bash
 file-sentinel replicate \
   -i ~/Documents::~/Documents/digest.db \
@@ -533,6 +601,7 @@ file-sentinel replicate \
 ```
 
 **From shared to Machine B**:
+
 ```bash
 file-sentinel replicate \
   -i /shared/Documents::/shared/Documents/digest.db \
@@ -542,6 +611,7 @@ file-sentinel replicate \
 ### Avoiding Conflicts
 
 To prevent conflicts:
+
 1. Designate one machine as primary
 2. Always sync from primary to shared
 3. Other machines sync from shared
@@ -560,6 +630,7 @@ ls -la /backup/Documents/.fs-recycle/
 ```
 
 Files are named with timestamps (milliseconds since epoch):
+
 ```
 1734364800000_old-file.txt
 1734451200000_old-file.txt
@@ -592,4 +663,3 @@ file-sentinel replicate \
   -o ~/dest::~/dest.db \
   --perma-delete
 ```
-

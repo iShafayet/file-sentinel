@@ -5,6 +5,7 @@ import { digestService } from "./digest-service.js";
 import { verifyService } from "./verify-service.js";
 import { replicateService } from "./replicate-service.js";
 import { healService } from "./heal-service.js";
+import { compareService } from "./compare-service.js";
 import { errorService } from "./error-service.js";
 
 /**
@@ -31,6 +32,9 @@ class CoreService {
 
       case "heal":
         return await healService.execute(config);
+
+      case "compare":
+        return await compareService.execute(config);
 
       default:
         // TypeScript should prevent this, but include for safety

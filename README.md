@@ -62,14 +62,23 @@ file-sentinel heal \
   --mirror /backup/Documents::/backup/Documents/digest.db
 ```
 
+**Compare digests** (predict what replicate would do):
+
+```bash
+file-sentinel compare \
+  --local ~/Documents/digest.db \
+  --remote /backup/Documents/digest.db
+```
+
 ## Core Commands
 
-File Sentinel provides four main commands:
+File Sentinel provides five main commands:
 
 - **digest** - Create or update a file inventory with cryptographic hashes
 - **verify** - Check files against their recorded state to detect corruption
 - **replicate** - Copy files to another location with integrity verification
 - **heal** - Restore corrupted or missing files from backup mirrors
+- **compare** - Compare two digests to predict what a replicate operation would do
 
 ## Key Features
 
@@ -173,7 +182,12 @@ file-sentinel heal \
 # 5. After making changes, update digest
 file-sentinel digest -i ~/Documents::~/Documents/digest.db
 
-# 6. Sync changes to backup
+# 6. Preview what would be synced (optional)
+file-sentinel compare \
+  --local ~/Documents/digest.db \
+  --remote /backup/Documents/digest.db
+
+# 7. Sync changes to backup
 file-sentinel replicate \
   -i ~/Documents::~/Documents/digest.db \
   -o /backup/Documents::/backup/Documents/digest.db
