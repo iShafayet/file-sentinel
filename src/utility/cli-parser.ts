@@ -25,7 +25,7 @@ export function parseArgs(argv?: string[]): Config {
     .option("--verbose", "Verbose output", false)
     .option("--panic-on-error", "Exit on first error", false)
     .option("--dry-run", "Simulate without writing", false)
-    .option("--no-tty", "Disable TTY mode (no colors, no interactive prompts)", false)
+    .option("--no-tty", "Disable TTY mode (no colors, no interactive prompts)", true)
     .option("-t, --io-timeout <seconds>", "IO timeout in seconds", "30")
     .action((options) => {
       const { dir, digestFile } = parseInputOption(options.input);
@@ -37,7 +37,7 @@ export function parseArgs(argv?: string[]): Config {
         verbose: options.verbose,
         panicOnError: options.panicOnError,
         dryRun: options.dryRun,
-        noTTY: !options.tty, // Commander.js inverts --no-tty to options.tty
+        noTty: !options.tty, // Commander.js inverts --no-tty to options.tty
         ioTimeout: parseInt(options.ioTimeout, 10),
       };
       parsedConfig = config;
@@ -56,7 +56,7 @@ export function parseArgs(argv?: string[]): Config {
     .option("--verbose", "Verbose output", false)
     .option("--panic-on-error", "Exit on first error", false)
     .option("--dry-run", "Simulate without writing", false)
-    .option("--no-tty", "Disable TTY mode (no colors, no interactive prompts)", false)
+    .option("--no-tty", "Disable TTY mode (no colors, no interactive prompts)", true)
     .option("-t, --io-timeout <seconds>", "IO timeout in seconds", "30")
     .action((options) => {
       const { dir, digestFile } = parseInputOption(options.input);
@@ -69,7 +69,7 @@ export function parseArgs(argv?: string[]): Config {
         verbose: options.verbose,
         panicOnError: options.panicOnError,
         dryRun: options.dryRun,
-        noTTY: !options.tty, // Commander.js inverts --no-tty to options.tty
+        noTty: !options.tty, // Commander.js inverts --no-tty to options.tty
         ioTimeout: parseInt(options.ioTimeout, 10),
       };
       parsedConfig = config;
@@ -99,9 +99,10 @@ export function parseArgs(argv?: string[]): Config {
     .option("--verbose", "Verbose output", false)
     .option("--panic-on-error", "Exit on first error", false)
     .option("--dry-run", "Simulate without writing", false)
-    .option("--no-tty", "Disable TTY mode (no colors, no interactive prompts)", false)
+    .option("--no-tty", "Disable TTY mode (no colors, no interactive prompts)", true)
     .option("-t, --io-timeout <seconds>", "IO timeout in seconds", "30")
     .action((options) => {
+      console.log(options);
       const source = parseInputOption(options.input);
       const dest = parseInputOption(options.output);
       const config: ReplicateConfig = {
@@ -117,7 +118,7 @@ export function parseArgs(argv?: string[]): Config {
         verbose: options.verbose,
         panicOnError: options.panicOnError,
         dryRun: options.dryRun,
-        noTTY: !options.tty, // Commander.js inverts --no-tty to options.tty
+        noTty: !options.tty, // Commander.js inverts --no-tty to options.tty
         ioTimeout: parseInt(options.ioTimeout, 10),
       };
       parsedConfig = config;
@@ -142,7 +143,7 @@ export function parseArgs(argv?: string[]): Config {
     .option("--verbose", "Verbose output", false)
     .option("--panic-on-error", "Exit on first error", false)
     .option("--dry-run", "Simulate without writing", false)
-    .option("--no-tty", "Disable TTY mode (no colors, no interactive prompts)", false)
+    .option("--no-tty", "Disable TTY mode (no colors, no interactive prompts)", true)
     .option("-t, --io-timeout <seconds>", "IO timeout in seconds", "30")
     .action((options) => {
       const { dir, digestFile } = parseInputOption(options.input);
@@ -163,7 +164,7 @@ export function parseArgs(argv?: string[]): Config {
         verbose: options.verbose,
         panicOnError: options.panicOnError,
         dryRun: options.dryRun,
-        noTTY: !options.tty, // Commander.js inverts --no-tty to options.tty
+        noTty: !options.tty, // Commander.js inverts --no-tty to options.tty
         ioTimeout: parseInt(options.ioTimeout, 10),
       };
       parsedConfig = config;

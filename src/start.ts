@@ -9,7 +9,7 @@ import { forceNonTTYMode } from "./utility/terminal-utils.js";
 const config = parseArgs();
 
 // Force non-TTY mode if requested
-if (config.noTTY) {
+if (config.noTty) {
   forceNonTTYMode();
 }
 

@@ -29,7 +29,7 @@ describe("Large File Tests - v2", (): void => {
       verbose: true,
       panicOnError: true,
       dryRun: false,
-      noTTY: false,
+      noTty: false,
       ioTimeout: 300,
     };
 
@@ -55,7 +55,7 @@ describe("Large File Tests - v2", (): void => {
       verbose: true,
       panicOnError: true,
       dryRun: false,
-      noTTY: false,
+      noTty: false,
       ioTimeout: 300,
     };
 
@@ -87,7 +87,7 @@ describe("Large File Tests - v2", (): void => {
       verbose: true,
       panicOnError: true,
       dryRun: false,
-      noTTY: false,
+      noTty: false,
       ioTimeout: 300,
     };
 
