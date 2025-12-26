@@ -63,9 +63,9 @@ Hash: 3e23e8160039594a33894f6564e1b1348bbd7a0088d42c4acb73eeaed59c009d
 - **Fast** - Can process large files efficiently
 - **Standard** - Widely used and trusted in the industry
 
-## The Four Commands
+## The Five Commands
 
-File Sentinel operates through four main commands, each serving a specific purpose.
+File Sentinel operates through five main commands, each serving a specific purpose.
 
 ### 1. Digest Command
 
@@ -130,6 +130,24 @@ File Sentinel operates through four main commands, each serving a specific purpo
 - Replaces corrupted files with good copies from mirrors
 - Verifies the replacement was successful
 - Reports files that couldn't be fixed
+
+### 5. Compare Command
+
+**Purpose**: Compare two digests to predict what a replicate operation would do.
+
+**When to use**:
+- Before running replicate to see what would change
+- To understand differences between source and destination
+- To plan synchronization operations
+- To verify backup state without reading actual files
+
+**What it does**:
+- Reads both digest databases
+- Compares file hashes between local and remote
+- Reports new files (would be copied)
+- Reports changed files (would be updated)
+- Reports deleted files (would be removed)
+- Does not read or modify actual files (digest-only operation)
 
 ## Mirrors
 

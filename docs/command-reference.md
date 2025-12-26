@@ -693,6 +693,175 @@ file-sentinel heal \
   --dry-run
 ```
 
+## compare Command
+
+Compare two digests to predict what a replicate operation would do.
+
+### Syntax
+
+```bash
+file-sentinel compare --local <digest-file> --remote <digest-file> [options]
+```
+
+### Required Options
+
+#### --local <digest-file>
+
+Specify the local (source) digest file path.
+
+```bash
+--local ~/Documents/digest.db
+```
+
+#### --remote <digest-file>
+
+Specify the remote (destination) digest file path.
+
+```bash
+--remote /backup/Documents/digest.db
+```
+
+### Optional Options
+
+#### --verbose
+
+Display detailed information about each file difference.
+
+```bash
+file-sentinel compare \
+  --local ~/source/digest.db \
+  --remote /backup/digest.db \
+  --verbose
+```
+
+#### --panic-on-error
+
+Exit immediately when an error occurs instead of continuing.
+
+```bash
+file-sentinel compare \
+  --local ~/source/digest.db \
+  --remote /backup/digest.db \
+  --panic-on-error
+```
+
+#### --dry-run
+
+This option is accepted but has no effect for compare (it's already a read-only operation).
+
+#### --no-tty
+
+Disable TTY mode to remove interactive features and ANSI colors.
+
+```bash
+file-sentinel compare \
+  --local ~/source/digest.db \
+  --remote /backup/digest.db \
+  --no-tty
+```
+
+#### -t, --io-timeout <seconds>
+
+Set the I/O timeout in seconds (default: 30). Not typically needed for compare since it only reads digest files.
+
+### What It Does
+
+1. **Reads both digests** - Opens and reads file information from both digest databases
+2. **Compares file hashes** - Identifies differences between local and remote digests
+3. **Categorizes changes** - Groups files into new, changed, and deleted
+4. **Reports results** - Shows what would happen if replicate was run
+
+### Output
+
+```
+Starting Compare Operation
+================================================================================
+Local Digest File: /home/user/Documents/digest.db (source)
+Remote Digest File: /backup/Documents/digest.db (destination)
+Dry Run: false
+
+(compare-service)> Local database opened successfully
+(compare-service)> Remote database opened successfully
+(compare-service)> Found 523 files in local digest
+(compare-service)> Found 518 files in remote digest
+(compare-service)> Comparing digests...
+
+COMPARISON RESULTS (Predicting Replicate: Local -> Remote)
+================================================================================
+New Files (would be copied to remote): 7
+Changed Files (would be updated in remote): 2
+Deleted Files (would be removed from remote): 3
+
+New Files:
+  + photos/vacation/IMG_001.jpg
+  + documents/report.pdf
+  ...
+
+Changed Files:
+  ~ documents/notes.txt
+  ~ data/config.json
+
+Deleted Files:
+  - old/archive.zip
+  - temp/file.tmp
+  ...
+
+COMPARE Operation COMPLETED
+Total Files Processed: 523
+Execution Time: 00:00:02
+Errors: 0
+
+New Files: 7
+Changed Files: 2
+Deleted Files: 3
+```
+
+### Understanding Results
+
+- **New Files** - Files that exist in local digest but not in remote (would be copied)
+- **Changed Files** - Files that exist in both but have different hashes (would be updated)
+- **Deleted Files** - Files that exist in remote digest but not in local (would be removed)
+
+### Important Notes
+
+- **Read-only operation** - Compare only reads digest files, never reads or modifies actual files
+- **Predictive** - Shows what would happen, not what has happened
+- **Fast** - Works entirely with digest databases, no file I/O required
+- **Digest files required** - Both digest files must exist before running compare
+
+### Examples
+
+**Basic comparison**:
+
+```bash
+file-sentinel compare \
+  --local ~/Documents/digest.db \
+  --remote /backup/Documents/digest.db
+```
+
+**Verbose output**:
+
+```bash
+file-sentinel compare \
+  --local ~/Documents/digest.db \
+  --remote /backup/Documents/digest.db \
+  --verbose
+```
+
+**Compare before replicating**:
+
+```bash
+# Preview what would change
+file-sentinel compare \
+  --local ~/source/digest.db \
+  --remote /backup/digest.db
+
+# If looks good, perform the replication
+file-sentinel replicate \
+  -i ~/source::~/source/digest.db \
+  -o /backup::/backup/digest.db
+```
+
 ## Exit Codes
 
 File Sentinel uses standard exit codes:
@@ -743,10 +912,15 @@ file-sentinel replicate \
 
 ### Preview Changes
 
-Use dry run to check what will happen:
+Use compare or dry run to check what will happen:
 
 ```bash
-# See what would be copied
+# Option 1: Compare digests (fast, digest-only)
+file-sentinel compare \
+  --local ~/source/digest.db \
+  --remote ~/dest/digest.db
+
+# Option 2: Dry run replicate (slower, verifies actual files)
 file-sentinel replicate \
   -i ~/source::~/source.db \
   -o ~/dest::~/dest.db \

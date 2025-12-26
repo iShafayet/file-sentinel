@@ -29,6 +29,11 @@ export type ExecutionResult = {
   filesCopied?: number;
   filesRecovered?: number;
   filesRecoveryFailed?: number;
+
+  // Compare specific
+  filesNew?: number;
+  filesChanged?: number;
+  // Note: filesDeleted is shared with digest command
 };
 
 /**
