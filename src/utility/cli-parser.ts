@@ -95,13 +95,15 @@ export function parseArgs(argv?: string[]): Config {
       []
     )
     .option("--perma-delete", "Permanently delete instead of recycle", false)
+    .option("--validate-post-copy", "Validate copied files after replication (default: enabled)", true)
+    .option("--no-validate-post-copy", "Disable validation of copied files after replication", false)
     .option("-a, --hash-algorithm <algo>", "Hash algorithm", "sha256")
     .option("--verbose", "Verbose output", false)
     .option("--panic-on-error", "Exit on first error", false)
     .option("--dry-run", "Simulate without writing", false)
     .option("--no-tty", "Disable TTY mode (no colors, no interactive prompts)", true)
     .option("-t, --io-timeout <seconds>", "IO timeout in seconds", "30")
-    .action((options) => {
+    .action((options: any) => {
       console.log(options);
       const source = parseInputOption(options.input);
       const dest = parseInputOption(options.output);
@@ -114,6 +116,7 @@ export function parseArgs(argv?: string[]): Config {
         subdirectory: options.subdirectory || null,
         mirrors: options.mirror,
         permaDelete: options.permaDelete,
+        validatePostCopy: options.validatePostCopy ?? true, // Default to true
         hashAlgorithm: options.hashAlgorithm as "sha256",
         verbose: options.verbose,
         panicOnError: options.panicOnError,
@@ -139,13 +142,15 @@ export function parseArgs(argv?: string[]): Config {
       collectMirrors,
       []
     )
+    .option("--validate-post-copy", "Validate copied files after healing (default: enabled)", true)
+    .option("--no-validate-post-copy", "Disable validation of copied files after healing", false)
     .option("-a, --hash-algorithm <algo>", "Hash algorithm", "sha256")
     .option("--verbose", "Verbose output", false)
     .option("--panic-on-error", "Exit on first error", false)
     .option("--dry-run", "Simulate without writing", false)
     .option("--no-tty", "Disable TTY mode (no colors, no interactive prompts)", true)
     .option("-t, --io-timeout <seconds>", "IO timeout in seconds", "30")
-    .action((options) => {
+    .action((options: any) => {
       const { dir, digestFile } = parseInputOption(options.input);
 
       // Validate that at least one mirror is provided
@@ -160,6 +165,7 @@ export function parseArgs(argv?: string[]): Config {
         digestFile: digestFile,
         subdirectory: options.subdirectory || null,
         mirrors: options.mirror,
+        validatePostCopy: options.noValidatePostCopy ? false : (options.validatePostCopy ?? true), // Default to true unless --no-validate-post-copy is used
         hashAlgorithm: options.hashAlgorithm as "sha256",
         verbose: options.verbose,
         panicOnError: options.panicOnError,
