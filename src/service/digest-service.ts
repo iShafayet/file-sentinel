@@ -1,10 +1,10 @@
 import { logger } from "../lib/logger.js";
 import { DigestConfig } from "../model/config.js";
-import { ExecutionResult, createExecutionResult, completeExecution, addError } from "../model/execution-results.js";
+import { ExecutionResult } from "../model/execution-results.js";
 import { DatabaseService } from "./database-service.js";
 import { discoveryService } from "./discovery-service.js";
 import { cryptoService } from "./crypto-service.js";
-import { displayService } from "./display-service.js";
+import { progressService } from "./progress-service.js";
 import { errorService } from "./error-service.js";
 import path from "path";
 import fs from "fs";
@@ -17,15 +17,9 @@ class DigestService {
    * Executes the digest command
    */
   async execute(config: DigestConfig): Promise<ExecutionResult> {
-    const result = createExecutionResult("digest");
-    result.filesAdded = 0;
-    result.filesUpdated = 0;
-    result.filesUnchanged = 0;
-    result.filesDeleted = 0;
-
-    // Enable buffering and start display
+    // Enable buffering and start display (creates ExecutionResult)
     logger.enableBuffering();
-    displayService.start(config);
+    progressService.start(config);
 
     logger.log("=".repeat(80));
     logger.log("Starting Digest Operation");
@@ -51,17 +45,16 @@ class DigestService {
 
       // Discover files with progress (filtered by subdirectory if specified)
       logger.log("(digest-service)> Discovering files...");
-      displayService.startDiscovery();
+      progressService.startDiscovery();
       const discoveredFiles = await discoveryService.discoverFiles(
         config.inputDir,
         config.subdirectory,
-        result,
         (fileCount, currentDir) => {
-          displayService.updateDiscoveryProgress(fileCount, currentDir);
+          progressService.updateDiscoveryProgress(fileCount, currentDir);
         },
         config.compatibilityRiskStrategy
       );
-      displayService.stopDiscovery();
+      progressService.stopDiscovery();
       logger.log(`(digest-service)> Discovered ${discoveredFiles.length} files`);
 
       // Get existing files from database (filtered by subdirectory if specified)
@@ -95,9 +88,9 @@ class DigestService {
           const relativePath = discoveredFiles[i];
 
           // Update progress display
-          displayService.updateTaskProgress(i, discoveredFiles.length, "Processing files");
-          displayService.updateFileProgress(0, 100, relativePath);
-          displayService.updateStats(result);
+          progressService.updateTaskProgress(i, discoveredFiles.length, "Processing files");
+          progressService.updateFileProgress(0, 100, relativePath);
+          progressService.updateStats();
 
           if (config.verbose && i % 100 === 0) {
             logger.log(`(digest-service)> Progress: ${i}/${discoveredFiles.length} files processed`);
@@ -115,26 +108,26 @@ class DigestService {
 
             switch (status) {
               case "added":
-                result.filesAdded!++;
+                progressService.incrementFilesAdded();
                 logger.debug(`(digest-service)> Added: ${relativePath}`);
                 break;
               case "updated":
-                result.filesUpdated!++;
+                progressService.incrementFilesUpdated();
                 logger.debug(`(digest-service)> Updated: ${relativePath}`);
                 break;
               case "unchanged":
-                result.filesUnchanged!++;
+                progressService.incrementFilesUnchanged();
                 logger.debug(`(digest-service)> Unchanged: ${relativePath}`);
                 break;
             }
 
-            result.totalFilesProcessed++;
+            progressService.incrementTotalFilesProcessed();
 
             // Update file completion
-            displayService.updateFileProgress(100, 100, relativePath);
+            progressService.updateFileProgress(100, 100, relativePath);
           } catch (error) {
             logger.logNegative(`(digest-service)> Error processing file: ${relativePath}`);
-            addError(result, `Failed to process ${relativePath}: ${(error as Error).message}`);
+            progressService.addError(`Failed to process ${relativePath}: ${(error as Error).message}`);
             errorService.handleError(error);
 
             if (config.panicOnError) {
@@ -149,7 +142,7 @@ class DigestService {
           for (const [relativePath] of existingFileMap) {
             if (!discoveredSet.has(relativePath)) {
               db.deleteFile(relativePath);
-              result.filesDeleted!++;
+              progressService.incrementFilesDeleted();
               if (config.verbose) {
                 logger.log(`(digest-service)> Deleted entry: ${relativePath}`);
               }
@@ -161,20 +154,23 @@ class DigestService {
         if (!config.dryRun && db.isOpen()) {
           const now = Date.now();
           const existingSummary = db.getSummary();
+          const result = progressService.getExecutionResult();
 
-          db.upsertSummary({
-            total_files: discoveredFiles.length,
-            total_size: result.totalBytesProcessed,
-            created_at: existingSummary?.created_at || now,
-            modified_at: now,
-          });
+          if (result) {
+            db.upsertSummary({
+              total_files: discoveredFiles.length,
+              total_size: result.totalBytesProcessed,
+              created_at: existingSummary?.created_at || now,
+              modified_at: now,
+            });
+          }
         }
 
         if (!config.dryRun && db.isOpen()) {
           db.commitTransaction();
         }
 
-        completeExecution(result, true);
+        progressService.completeExecution(true);
       } catch (error) {
         if (!config.dryRun && db.isOpen()) {
           db.rollbackTransaction();
@@ -183,35 +179,41 @@ class DigestService {
       }
 
       // Complete operation log
-      if (!config.dryRun && db.isOpen() && operationId !== null) {
+      const result = progressService.getExecutionResult();
+      if (!config.dryRun && db.isOpen() && operationId !== null && result) {
         db.completeOperation(operationId, result.success, result.errorCount);
       }
 
       // Complete progress display
-      displayService.updateTaskProgress(discoveredFiles.length, discoveredFiles.length, "Complete");
-      displayService.updateStats(result);
-      displayService.stop();
+      progressService.updateTaskProgress(discoveredFiles.length, discoveredFiles.length, "Complete");
+      progressService.updateStats();
+      progressService.stop();
 
       // Report results
-      displayService.logExecutionResult(result, config.verbose);
+      progressService.logExecutionResult(config.verbose);
     } catch (error) {
       logger.logNegative("(digest-service)> Digest operation failed");
-      addError(result, `Digest failed: ${(error as Error).message}`);
-      completeExecution(result, false);
+      progressService.addError(`Digest failed: ${(error as Error).message}`);
+      progressService.completeExecution(false);
       errorService.handleError(error);
 
-      if (!config.dryRun && db.isOpen() && operationId !== null) {
+      const result = progressService.getExecutionResult();
+      if (!config.dryRun && db.isOpen() && operationId !== null && result) {
         db.completeOperation(operationId, false, result.errorCount);
       }
 
       // Stop display on error
-      displayService.stop();
+      progressService.stop();
     } finally {
       if (db.isOpen()) {
         db.close();
       }
     }
 
+    const result = progressService.getExecutionResult();
+    if (!result) {
+      throw new Error("Execution result not available");
+    }
     return result;
   }
 
@@ -238,8 +240,10 @@ class DigestService {
     if (!existing) {
       const hash = await cryptoService.hashFile(fullPath, hashAlgorithm, (bytesRead, total) => {
         const percentage = Math.floor((bytesRead / total) * 100);
-        displayService.updateFileProgress(percentage, 100, relativePath);
+        progressService.updateFileProgress(percentage, 100, relativePath);
       });
+
+      progressService.addBytesProcessed(size);
 
       if (!dryRun && db.isOpen()) {
         db.upsertFile({
@@ -259,8 +263,10 @@ class DigestService {
       // Size or mtime changed, rehash
       const hash = await cryptoService.hashFile(fullPath, hashAlgorithm, (bytesRead, total) => {
         const percentage = Math.floor((bytesRead / total) * 100);
-        displayService.updateFileProgress(percentage, 100, relativePath);
+        progressService.updateFileProgress(percentage, 100, relativePath);
       });
+
+      progressService.addBytesProcessed(size);
 
       if (hash !== existing.hash) {
         // Hash changed, update
@@ -289,7 +295,8 @@ class DigestService {
       return "updated";
     }
 
-    // File unchanged
+    // File unchanged - still count bytes for total
+    progressService.addBytesProcessed(size);
     return "unchanged";
   }
 }

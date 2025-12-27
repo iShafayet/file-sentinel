@@ -1,8 +1,8 @@
 import { logger } from "../lib/logger.js";
 import { CompareConfig } from "../model/config.js";
-import { ExecutionResult, createExecutionResult, completeExecution, addError } from "../model/execution-results.js";
+import { ExecutionResult } from "../model/execution-results.js";
 import { DatabaseService } from "./database-service.js";
-import { displayService } from "./display-service.js";
+import { progressService } from "./progress-service.js";
 import { errorService } from "./error-service.js";
 import { FileRow } from "../model/database-schema.js";
 import { normalizeRelativePath } from "../utility/path-utils.js";
@@ -16,14 +16,9 @@ class CompareService {
    * Executes the compare command
    */
   async execute(config: CompareConfig): Promise<ExecutionResult> {
-    const result = createExecutionResult("compare");
-    result.filesNew = 0;
-    result.filesChanged = 0;
-    result.filesDeleted = 0;
-
-    // Enable buffering and start display
+    // Enable buffering and start display (creates ExecutionResult)
     logger.enableBuffering();
-    displayService.start(config);
+    progressService.start(config);
 
     logger.log("=".repeat(80));
     logger.log("Starting Compare Operation");
@@ -106,26 +101,26 @@ class CompareService {
 
       // Perform comparison (predicts what replicate would do: local -> remote)
       logger.log("(compare-service)> Comparing digests...");
-      this.compareReplicate(localMap, remoteMap, result, config);
+      this.compareReplicate(localMap, remoteMap, config);
 
       // Complete execution
-      completeExecution(result, true);
+      progressService.completeExecution(true);
 
       // Complete progress display
-      displayService.updateTaskProgress(1, 1, "Complete");
-      displayService.updateStats(result);
-      displayService.stop();
+      progressService.updateTaskProgress(1, 1, "Complete");
+      progressService.updateStats();
+      progressService.stop();
 
       // Report results
-      this.logComparisonResults(result, config);
+      this.logComparisonResults(config);
     } catch (error) {
       logger.logNegative("(compare-service)> Compare operation failed");
-      addError(result, `Compare failed: ${(error as Error).message}`);
-      completeExecution(result, false);
+      progressService.addError(`Compare failed: ${(error as Error).message}`);
+      progressService.completeExecution(false);
       errorService.handleError(error);
 
       // Stop display on error
-      displayService.stop();
+      progressService.stop();
     } finally {
       if (localDb.isOpen()) {
         localDb.close();
@@ -135,6 +130,10 @@ class CompareService {
       }
     }
 
+    const result = progressService.getExecutionResult();
+    if (!result) {
+      throw new Error("Execution result not available");
+    }
     return result;
   }
 
@@ -144,30 +143,29 @@ class CompareService {
   private compareReplicate(
     localMap: Map<string, FileRow>,
     remoteMap: Map<string, FileRow>,
-    result: ExecutionResult,
     config: CompareConfig
   ): void {
     const newFiles: string[] = [];
     const changedFiles: string[] = [];
     const deletedFiles: string[] = [];
 
-    // Find new files (in local but not in remote)
+    // Find files to be created (in local but not in remote)
     for (const [path, localFile] of localMap) {
       if (!remoteMap.has(path)) {
         newFiles.push(path);
-        result.filesNew!++;
+        progressService.incrementFilesToBeCreated();
         if (config.verbose) {
-          logger.log(`(compare-service)> New: ${path}`);
+          logger.log(`(compare-service)> To be created: ${path}`);
         }
       } else {
         // Check if file changed (different hash)
         const remoteFile = remoteMap.get(path)!;
         if (localFile.hash_sha256 !== remoteFile.hash_sha256) {
           changedFiles.push(path);
-          result.filesChanged!++;
+          progressService.incrementFilesToBeUpdated();
           if (config.verbose) {
             logger.log(
-              `(compare-service)> Changed: ${path} (local: ${localFile.hash_sha256.substring(
+              `(compare-service)> To be updated: ${path} (local: ${localFile.hash_sha256.substring(
                 0,
                 8
               )}..., remote: ${remoteFile.hash_sha256.substring(0, 8)}...)`
@@ -177,18 +175,21 @@ class CompareService {
       }
     }
 
-    // Find deleted files (in remote but not in local)
+    // Find files to be deleted (in remote but not in local)
     for (const [path] of remoteMap) {
       if (!localMap.has(path)) {
         deletedFiles.push(path);
-        result.filesDeleted!++;
+        progressService.incrementFilesToBeDeleted();
         if (config.verbose) {
-          logger.log(`(compare-service)> Deleted: ${path}`);
+          logger.log(`(compare-service)> To be deleted: ${path}`);
         }
       }
     }
 
-    result.totalFilesProcessed = localMap.size;
+    // Set total files processed
+    for (let i = 0; i < localMap.size; i++) {
+      progressService.incrementTotalFilesProcessed();
+    }
 
     // Log summary
     logger.log("");
@@ -221,8 +222,8 @@ class CompareService {
   /**
    * Logs the comparison results in a formatted way
    */
-  private logComparisonResults(result: ExecutionResult, config: CompareConfig): void {
-    displayService.logExecutionResult(result, config.verbose);
+  private logComparisonResults(config: CompareConfig): void {
+    progressService.logExecutionResult(config.verbose);
   }
 }
 

@@ -1,6 +1,6 @@
 import { logger } from "../lib/logger.js";
 import { Config } from "../model/config.js";
-import { displayService } from "./display-service.js";
+import { progressService } from "./progress-service.js";
 
 class ErrorService {
   private config: Config | null = null;
@@ -40,7 +40,7 @@ class ErrorService {
       logger.logNegative(`(error-service)> Terminating due to error: ${String(error)}`);
     }
 
-    await displayService.stopDisplayAndShowLogs({ waitForKeyPress: false });
+    await progressService.stopDisplayAndShowLogs({ waitForKeyPress: false });
     process.exit(1);
   }
 }

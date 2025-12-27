@@ -1,11 +1,11 @@
 import { logger } from "../lib/logger.js";
 import { ReplicateConfig } from "../model/config.js";
-import { ExecutionResult, createExecutionResult, completeExecution, addError } from "../model/execution-results.js";
+import { ExecutionResult } from "../model/execution-results.js";
 import { DatabaseService } from "./database-service.js";
 import { discoveryService } from "./discovery-service.js";
 import { cryptoService } from "./crypto-service.js";
 import { fileService } from "./file-service.js";
-import { displayService } from "./display-service.js";
+import { progressService } from "./progress-service.js";
 import { errorService } from "./error-service.js";
 import { RecycleUtility } from "../utility/recycle-utility.js";
 import { isInSubdirectory, joinPath } from "../utility/path-utils.js";
@@ -22,15 +22,9 @@ class ReplicateService {
    * Executes the replicate command
    */
   async execute(config: ReplicateConfig): Promise<ExecutionResult> {
-    const result = createExecutionResult("replicate");
-    result.filesCopied = 0;
-    result.filesDeleted = 0;
-    result.filesRecovered = 0;
-    result.filesRecoveryFailed = 0;
-
-    // Enable buffering and start display
+    // Enable buffering and start display (creates ExecutionResult)
     logger.enableBuffering();
-    displayService.start(config);
+    progressService.start(config);
 
     logger.log("=".repeat(80));
     logger.log("Starting Replicate Operation");
@@ -108,9 +102,9 @@ class ReplicateService {
           const relativePath = sourceFile.relative_path;
 
           // Update progress display
-          displayService.updateTaskProgress(i, sourceFiles.length, "Replicating files");
-          displayService.updateFileProgress(0, 100, relativePath);
-          displayService.updateStats(result);
+          progressService.updateTaskProgress(i, sourceFiles.length, "Replicating files");
+          progressService.updateFileProgress(0, 100, relativePath);
+          progressService.updateStats();
 
           if (config.verbose && i % 100 === 0) {
             logger.log(`(replicate-service)> Progress: ${i}/${sourceFiles.length} files processed`);
@@ -127,9 +121,9 @@ class ReplicateService {
             );
 
             if (replicateResult.success) {
-              result.filesCopied!++;
-              result.totalBytesProcessed += sourceFile.size;
-              displayService.updateFileProgress(100, 100, relativePath);
+              progressService.incrementFilesCopied();
+              progressService.addBytesProcessed(sourceFile.size);
+              progressService.updateFileProgress(100, 100, relativePath);
 
               // Update destination digest
               if (!config.dryRun && destDb.isOpen()) {
@@ -144,8 +138,8 @@ class ReplicateService {
 
               logger.debug(`(replicate-service)> Copied: ${relativePath}`);
             } else {
-              result.filesRecoveryFailed!++;
-              addError(result, `Failed to replicate ${relativePath}: ${replicateResult.reason}`);
+              progressService.incrementFilesRecoveryFailed();
+              progressService.addError(`Failed to replicate ${relativePath}: ${replicateResult.reason}`);
               logger.logNegative(`(replicate-service)> Failed: ${relativePath} - ${replicateResult.reason}`);
 
               if (config.panicOnError) {
@@ -153,10 +147,10 @@ class ReplicateService {
               }
             }
 
-            result.totalFilesProcessed++;
+            progressService.incrementTotalFilesProcessed();
           } catch (error) {
             logger.logNegative(`(replicate-service)> Error replicating file: ${relativePath}`);
-            addError(result, `Error replicating ${relativePath}: ${(error as Error).message}`);
+            progressService.addError(`Error replicating ${relativePath}: ${(error as Error).message}`);
             errorService.handleError(error);
 
             if (config.panicOnError) {
@@ -185,10 +179,10 @@ class ReplicateService {
                 }
 
                 destDb.deleteFile(relativePath);
-                result.filesDeleted!++;
+                progressService.incrementFilesDeleted();
               } catch (error) {
                 logger.logNegative(`(replicate-service)> Error deleting: ${relativePath}`);
-                addError(result, `Error deleting ${relativePath}: ${(error as Error).message}`);
+                progressService.addError(`Error deleting ${relativePath}: ${(error as Error).message}`);
               }
             }
           }
@@ -198,20 +192,25 @@ class ReplicateService {
         if (!config.dryRun && destDb.isOpen()) {
           const now = Date.now();
           const existingSummary = destDb.getSummary();
+          const result = progressService.getExecutionResult();
 
-          destDb.upsertSummary({
-            total_files: sourceFiles.length,
-            total_size: result.totalBytesProcessed,
-            created_at: existingSummary?.created_at || now,
-            modified_at: now,
-          });
+          if (result) {
+            destDb.upsertSummary({
+              total_files: sourceFiles.length,
+              total_size: result.totalBytesProcessed,
+              created_at: existingSummary?.created_at || now,
+              modified_at: now,
+            });
+          }
         }
 
         if (!config.dryRun && destDb.isOpen()) {
           destDb.commitTransaction();
         }
 
-        completeExecution(result, result.filesRecoveryFailed === 0);
+        const result = progressService.getExecutionResult();
+        const success = result && result.filesRecoveryFailed === 0;
+        progressService.completeExecution(success || false);
       } catch (error) {
         if (!config.dryRun && destDb.isOpen()) {
           destDb.rollbackTransaction();
@@ -220,33 +219,35 @@ class ReplicateService {
       }
 
       // Complete operation logs
-      if (sourceOpId !== null) {
+      const result = progressService.getExecutionResult();
+      if (sourceOpId !== null && result) {
         sourceDb.completeOperation(sourceOpId, result.success, result.errorCount);
       }
-      if (!config.dryRun && destDb.isOpen() && destOpId !== null) {
+      if (!config.dryRun && destDb.isOpen() && destOpId !== null && result) {
         destDb.completeOperation(destOpId, result.success, result.errorCount);
       }
 
       // Complete progress display
-      displayService.updateTaskProgress(sourceFiles.length, sourceFiles.length, "Complete");
-      displayService.updateStats(result);
-      displayService.stop();
+      progressService.updateTaskProgress(sourceFiles.length, sourceFiles.length, "Complete");
+      progressService.updateStats();
+      progressService.stop();
 
       // Report results
-      displayService.logExecutionResult(result, config.verbose);
+      progressService.logExecutionResult(config.verbose);
     } catch (error) {
       logger.logNegative("(replicate-service)> Replicate operation failed");
-      addError(result, `Replicate failed: ${(error as Error).message}`);
-      completeExecution(result, false);
+      progressService.addError(`Replicate failed: ${(error as Error).message}`);
+      progressService.completeExecution(false);
       errorService.handleError(error);
 
       // Stop display on error
-      displayService.stop();
+      progressService.stop();
 
-      if (sourceDb.isOpen() && sourceOpId !== null) {
+      const result = progressService.getExecutionResult();
+      if (sourceDb.isOpen() && sourceOpId !== null && result) {
         sourceDb.completeOperation(sourceOpId, false, result.errorCount);
       }
-      if (destDb.isOpen() && destOpId !== null) {
+      if (destDb.isOpen() && destOpId !== null && result) {
         destDb.completeOperation(destOpId, false, result.errorCount);
       }
     } finally {
@@ -258,6 +259,10 @@ class ReplicateService {
       }
     }
 
+    const result = progressService.getExecutionResult();
+    if (!result) {
+      throw new Error("Execution result not available");
+    }
     return result;
   }
 
@@ -283,7 +288,7 @@ class ReplicateService {
         if (destStats.size === expectedSize) {
           const destHash = await cryptoService.hashFile(destPath, config.hashAlgorithm, (bytesRead, total) => {
             const percentage = Math.floor((bytesRead / total) * 100);
-            displayService.updateFileProgress(percentage, 100, `[Check] ${relativePath}`);
+            progressService.updateFileProgress(percentage, 100, `[Check] ${relativePath}`);
           });
           if (destHash === expectedHash) {
             // File already correct, skip
@@ -309,7 +314,7 @@ class ReplicateService {
       try {
         const sourceHash = await cryptoService.hashFile(sourcePath, config.hashAlgorithm, (bytesRead, total) => {
           const percentage = Math.floor((bytesRead / total) * 100);
-          displayService.updateFileProgress(percentage, 100, `[Verify] ${relativePath}`);
+          progressService.updateFileProgress(percentage, 100, `[Verify] ${relativePath}`);
         });
         const sourceStats = fs.statSync(sourcePath);
 
@@ -351,7 +356,7 @@ class ReplicateService {
           try {
             await fileService.copyLargeFile(sourcePath, destPath, (bytesRead, totalBytes) => {
               const percentage = Math.floor((bytesRead / totalBytes) * 100);
-              displayService.updateFileProgress(percentage, 100, `[Copy] ${relativePath}`);
+              progressService.updateFileProgress(percentage, 100, `[Copy] ${relativePath}`);
             });
           } catch (error) {
             const err = error as NodeJS.ErrnoException;
@@ -364,7 +369,7 @@ class ReplicateService {
             try {
               const copiedHash = await cryptoService.hashFile(destPath, config.hashAlgorithm, (bytesRead, total) => {
                 const percentage = Math.floor((bytesRead / total) * 100);
-                displayService.updateFileProgress(percentage, 100, `[Validate] ${relativePath}`);
+                progressService.updateFileProgress(percentage, 100, `[Validate] ${relativePath}`);
               });
               if (copiedHash !== expectedHash) {
                 return { success: false, reason: "Copy verification failed" };
