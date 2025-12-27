@@ -1,4 +1,5 @@
 import { isTTY } from "../utility/terminal-utils.js";
+import { serializeError } from "../utility/error-utils.js";
 
 const STYLE = {
   FgYellow: "\x1b[33m",
@@ -17,7 +18,6 @@ export type LoggerSwitches = {
   important: boolean;
   warning: boolean;
   error: boolean;
-  urgent: boolean;
   color?: boolean; // Optional, defaults to true for TTY
 };
 
@@ -27,7 +27,6 @@ const DEFAULT_SWITCHES: LoggerSwitches = {
   important: true,
   warning: true,
   error: true,
-  urgent: true,
 };
 
 type LogEntry = {
@@ -41,6 +40,7 @@ class Logger {
   private switches: LoggerSwitches;
   private buffering = false;
   private logBuffer: LogEntry[] = [];
+  private logStreamCallback: ((level: string, message: string) => void) | null = null;
 
   constructor(switches: LoggerSwitches) {
     this.switches = {
@@ -48,6 +48,16 @@ class Logger {
     };
   }
 
+  /**
+   * Register a callback to stream logs to (e.g., for TUI display)
+   */
+  public setLogStreamCallback(callback: ((level: string, message: string) => void) | null): void {
+    this.logStreamCallback = callback;
+  }
+
+  /**
+   * Set the verbosity of the logger
+   */
   public setVerbosity(verbose: boolean) {
     if (verbose) {
       this.switches.debug = true;
@@ -61,23 +71,15 @@ class Logger {
   /**
    * Enable log buffering mode
    */
-  enableBuffering() {
+  public enableBuffering() {
     this.buffering = true;
     this.logBuffer = [];
   }
 
   /**
-   * Disable log buffering and return buffered logs
-   */
-  disableBuffering(): LogEntry[] {
-    this.buffering = false;
-    return this.logBuffer;
-  }
-
-  /**
    * Flush all buffered logs to console
    */
-  flushBufferedLogs() {
+  public flushBufferedLogs() {
     if (this.logBuffer.length === 0) {
       return;
     }
@@ -105,7 +107,7 @@ class Logger {
   /**
    * Get count of buffered logs
    */
-  getBufferedLogCount(): number {
+  public getBufferedLogCount(): number {
     return this.logBuffer.length;
   }
 
@@ -115,6 +117,14 @@ class Logger {
   private logOrBuffer(level: string, style: string, args: any[]) {
     const timestamp = new Date().toISOString();
     const effectiveStyle = isTTY() ? style : null;
+
+    // Format message for streaming
+    const message = args.map((arg) => (typeof arg === "string" ? arg : JSON.stringify(arg))).join(" ");
+
+    // Stream to display service if callback is registered
+    if (this.logStreamCallback && isTTY()) {
+      this.logStreamCallback(level.trim(), message);
+    }
 
     if (this.buffering && isTTY()) {
       this.logBuffer.push({ timestamp, level, args, style: effectiveStyle });
@@ -127,59 +137,41 @@ class Logger {
     }
   }
 
-  debug(...args: any) {
+  public debug(...args: any) {
     if (!this.switches.debug) return;
-    // Debug logs should not be colored
     this.logOrBuffer("DEBUG\t", STYLE.Reset, args);
   }
 
-  log(...args: any) {
+  public log(...args: any) {
     if (!this.switches.log) return;
     this.logOrBuffer("LOG\t", STYLE.FgWhite, args);
   }
 
-  logNegative(...args: any) {
+  public logNegative(...args: any) {
     if (!this.switches.log) return;
     this.logOrBuffer("NEG\t", STYLE.FgRed, args);
   }
 
-  logPositive(...args: any) {
+  public logPositive(...args: any) {
     if (!this.switches.log) return;
     this.logOrBuffer("POS\t", STYLE.FgGreen, args);
   }
 
-  urgent(...args: any) {
-    if (!this.switches.important) return;
-    args.forEach((arg: any, index: number) => {
-      args[index] = JSON.stringify(arg, null, 2);
-    });
-    this.logOrBuffer("URG\t", STYLE.FgCyan, args);
-  }
-
-  important(...args: any) {
+  public important(...args: any) {
     if (!this.switches.important) return;
     this.logOrBuffer("IMP\t", STYLE.FgBlue, args);
   }
 
-  warn(errorObject: Error, optionalContext = null) {
-    if (this.buffering && isTTY()) {
-      let errorString = JSON.stringify(errorObject, Object.getOwnPropertyNames(errorObject));
-      this.logOrBuffer("WARN\t", STYLE.FgOrange, [errorString, optionalContext]);
-    } else {
-      console.warn(errorObject);
-      let errorString = JSON.stringify(errorObject, Object.getOwnPropertyNames(errorObject));
-      const timestamp = new Date().toISOString();
-      console.log.apply(console, [timestamp, "WARN\t", errorString, optionalContext]);
-    }
+  public warn(errorObject: Error) {
+    if (!this.switches.warning) return;
+    const errorString = serializeError(errorObject);
+    this.logOrBuffer("WARN\t", STYLE.FgOrange, [errorString]);
   }
 
-  error(errorObject: Error, optionalContext = null) {
-    if (this.buffering && isTTY()) {
-      let errorString = JSON.stringify(errorObject, Object.getOwnPropertyNames(errorObject));
-      this.logOrBuffer("ERROR\t", STYLE.FgRed, [errorString, optionalContext]);
-    } else {
-      console.error(errorObject);
-    }
+  public error(errorObject: Error) {
+    if (!this.switches.error) return;
+    const errorString = serializeError(errorObject);
+    this.logOrBuffer("ERROR\t", STYLE.FgRed, [errorString]);
   }
 }
 
