@@ -1,66 +1,5 @@
 import { CodedError, DeveloperError } from "./coded-error.js";
 
-type SerializedError = {
-  code: string;
-  message: string;
-  details: any;
-};
-
-export const stringifyErrorObject = (errorObject: Error): [SerializedError, string] => {
-  let details = {};
-
-  if (!(errorObject instanceof Error)) {
-    throw new DeveloperError("DEVELOPER_ERROR", "expected errorObject to be an instanceof Error");
-  }
-
-  let code = "GENERIC_SERVER_ERROR";
-  let message =
-    "We have encountered an unexpected server error. " + "It has been logged and administrators will be notified.";
-
-  if (errorObject instanceof CodedError) {
-    code = (errorObject as CodedError).code;
-    message = errorObject.message;
-  }
-
-  if ("isJoi" in errorObject) {
-    code = "VALIDATION_ERROR";
-    details = (errorObject as any).details;
-    message = errorObject.message;
-  }
-
-  let name = errorObject.name;
-
-  return [{ code, message, details }, name];
-};
-
-export const detectHttpStatusCode = (serializedError: SerializedError, errorName: string | null) => {
-  if (["VALIDATION_ERROR", "API_KEY_NOT_FOUND"].includes(serializedError.code)) {
-    return 400;
-  }
-
-  if (["API_KEY_EXPIRED"].includes(serializedError.code)) {
-    return 401;
-  }
-
-  if (["ACCESS_DENIED", "USER_BANNED"].includes(serializedError.code)) {
-    return 403;
-  }
-
-  if (["AUTHORIZATION_HEADER_MISSING", "AUTHORIZATION_HEADER_MALFORMATTED"].includes(serializedError.code)) {
-    return 412;
-  }
-
-  if (["DEVELOPER_ERROR", "API_KEY_CREATION_FAILED"].includes(serializedError.code)) {
-    return 500;
-  }
-
-  if (errorName === "UserError") {
-    return 400;
-  }
-
-  return 500;
-};
-
 /**
  * Extracts a meaningful error message from Node.js file system errors
  */
@@ -153,4 +92,38 @@ export const getFileSystemErrorMessage = (
   }
 
   return defaultMessage;
+};
+
+export const serializeError = (errorObject: Error): string => {
+  const parts: string[] = [];
+
+  // Error name and message
+  if (errorObject.name && errorObject.message) {
+    parts.push(`${errorObject.name}: ${errorObject.message}`);
+  } else if (errorObject.message) {
+    parts.push(errorObject.message);
+  } else if (errorObject.name) {
+    parts.push(errorObject.name);
+  } else {
+    parts.push(String(errorObject));
+  }
+
+  // Stack trace (if available and different from message)
+  if (errorObject.stack) {
+    const stackLines = errorObject.stack.split("\n");
+    // Skip the first line if it's just the name:message (already included)
+    const firstLine = stackLines[0] || "";
+    const nameMessagePattern =
+      errorObject.name && errorObject.message ? `${errorObject.name}: ${errorObject.message}` : null;
+
+    if (nameMessagePattern && firstLine.includes(nameMessagePattern)) {
+      // Include stack trace starting from line 2
+      parts.push(stackLines.slice(1).join("\n"));
+    } else {
+      // Include full stack trace
+      parts.push(errorObject.stack);
+    }
+  }
+
+  return parts.join("\n");
 };
