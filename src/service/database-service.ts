@@ -1,10 +1,22 @@
 import Database from "better-sqlite3";
 import { SCHEMA, SummaryRow, OperationRow, FileRow, SummaryData, FileData } from "../model/database-schema.js";
 
+const openDatabaseServices: Set<DatabaseService> = new Set();
+
 /**
  * Database service for SQLite operations
  */
 export class DatabaseService {
+  /**
+   * Closes all open database connections across all DatabaseService instances
+   */
+  public static closeAllConnections(): void {
+    for (const service of openDatabaseServices) {
+      service.close();
+    }
+    openDatabaseServices.clear();
+  }
+
   private db: Database.Database | null = null;
   private digestFilePath: string | null = null;
 
@@ -24,6 +36,8 @@ export class DatabaseService {
 
     // Initialize schema
     this.initializeSchema();
+
+    openDatabaseServices.add(this);
   }
 
   /**
@@ -35,6 +49,8 @@ export class DatabaseService {
       this.db = null;
       this.digestFilePath = null;
     }
+
+    openDatabaseServices.delete(this);
   }
 
   /**
