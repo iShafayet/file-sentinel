@@ -32,6 +32,7 @@ describe("Large File Tests - v2", (): void => {
       dryRun: false,
       noTty: true,
       ioTimeout: 300,
+      compatibilityRiskStrategy: "abort",
     };
 
     const fileSentinel = new FileSentinelProgram();

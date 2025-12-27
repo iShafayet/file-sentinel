@@ -375,7 +375,19 @@ class DisplayService {
   /**
    * Waits for user to press any key and then displays buffered logs
    */
-  public async waitForKeyPressAndShowLogs(): Promise<void> {
+  public async stopDisplayAndShowLogs({ waitForKeyPress }: { waitForKeyPress: boolean }): Promise<void> {
+    this.stop();
+
+    if (this.multibar && this.taskBar) {
+      this.multibar?.remove(this.taskBar);
+    }
+    if (this.multibar && this.fileBar) {
+      this.multibar?.remove(this.fileBar);
+    }
+    if (this.multibar && this.discoveryBar) {
+      this.multibar?.remove(this.discoveryBar);
+    }
+
     const bufferedLogCount = logger.getBufferedLogCount();
 
     if (bufferedLogCount === 0) {
@@ -384,7 +396,7 @@ class DisplayService {
 
     // Skip keypress wait if not in TTY mode (e.g., in tests, CI, or piped output)
     // Check if we're in TTY mode - if not, auto-flush
-    if (!isTTY()) {
+    if (!isTTY() || !waitForKeyPress) {
       // In non-interactive mode, just show the logs automatically
       console.log("\n");
       logger.flushBufferedLogs();
@@ -409,6 +421,8 @@ class DisplayService {
         }
         process.stdin.removeListener("keypress", onKeyPress);
         process.stdin.pause();
+
+        console.clear();
 
         // Flush and display logs
         logger.flushBufferedLogs();
@@ -535,39 +549,6 @@ class DisplayService {
     const ellipsis = "...";
     const partLength = Math.floor((maxLength - ellipsis.length) / 2);
     return fileName.substring(0, partLength) + ellipsis + fileName.substring(fileName.length - partLength);
-  }
-
-  public promptForKeyPress(): Promise<void> {
-    // Skip keypress wait if not in TTY mode (e.g., in tests, CI, or piped output)
-    // Check if we're in TTY mode
-    if (!isTTY()) {
-      return Promise.resolve();
-    }
-
-    console.log("\n");
-    console.log("Press any key to continue, or Ctrl+C to exit...");
-
-    return new Promise((resolve) => {
-      // Set raw mode to capture single keypress
-      readline.emitKeypressEvents(process.stdin);
-      if (isStdinTTY()) {
-        process.stdin.setRawMode(true);
-      }
-
-      const onKeyPress = () => {
-        // Restore normal mode
-        if (isStdinTTY()) {
-          process.stdin.setRawMode(false);
-        }
-        process.stdin.removeListener("keypress", onKeyPress);
-        process.stdin.pause();
-
-        resolve();
-      };
-
-      process.stdin.on("keypress", onKeyPress);
-      process.stdin.resume();
-    });
   }
 }
 

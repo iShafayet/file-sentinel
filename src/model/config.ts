@@ -13,12 +13,22 @@ type BaseConfig = {
   hashAlgorithm: "sha256";
 };
 
+// Compatibility risk handling strategies
+export type CompatibilityRiskStrategy =
+  | "abort"
+  | "skip"
+  | "accept-risk"
+  | "mitigate-or-abort"
+  | "mitigate-or-skip"
+  | "mitigate-or-accept-risk";
+
 // Digest command config
 export type DigestConfig = BaseConfig & {
   command: "digest";
   inputDir: string;
   digestFile: string;
   subdirectory: string | null;
+  compatibilityRiskStrategy: CompatibilityRiskStrategy;
 };
 
 // Verify command config
@@ -77,6 +87,9 @@ export const DigestConfigSchema = Joi.object({
   inputDir: Joi.string().required(),
   digestFile: Joi.string().required(),
   subdirectory: Joi.string().allow(null).required(),
+  compatibilityRiskStrategy: Joi.string()
+    .valid("abort", "skip", "accept-risk", "mitigate-or-abort", "mitigate-or-skip", "mitigate-or-accept-risk")
+    .required(),
   ...baseConfigSchema,
 });
 

@@ -1,10 +1,14 @@
 import { logger } from "../lib/logger.js";
 import fs from "fs";
 import path from "path";
+import { promises as fsPromises } from "fs";
 import constants from "../constant/common-constants.js";
 import { errorService } from "./error-service.js";
 import { ExecutionResult } from "../model/execution-results.js";
 import { getRelativePath, isIgnoredPath } from "../utility/path-utils.js";
+import { isPathRisky, getSafePath, formatRiskyPathError } from "../utility/path-sanitization-utility.js";
+import { CompatibilityRiskStrategy } from "../model/config.js";
+import { CompatibilityRiskError } from "../model/errors.js";
 
 /**
  * Service for discovering files in a directory
@@ -23,13 +27,15 @@ class DiscoveryService {
    * @param subdirectory - Optional subdirectory to limit the scan
    * @param executionResult - Optional execution result to track errors
    * @param progressCallback - Optional callback for progress updates (fileCount, currentDir)
+   * @param compatibilityRiskStrategy - Optional strategy for handling risky filenames (only used for digest)
    * @returns Array of relative paths from rootDir
    */
   public async discoverFiles(
     rootDir: string,
     subdirectory?: string | null,
     executionResult?: ExecutionResult,
-    progressCallback?: (fileCount: number, currentDir: string) => void
+    progressCallback?: (fileCount: number, currentDir: string) => void,
+    compatibilityRiskStrategy?: CompatibilityRiskStrategy
   ): Promise<string[]> {
     const fileList: string[] = [];
     const startDir = subdirectory ? path.join(rootDir, subdirectory) : rootDir;
@@ -40,7 +46,14 @@ class DiscoveryService {
       return fileList;
     }
 
-    await this.discoverFilesRecursive(startDir, rootDir, fileList, executionResult, progressCallback);
+    await this.discoverFilesRecursive(
+      startDir,
+      rootDir,
+      fileList,
+      executionResult,
+      progressCallback,
+      compatibilityRiskStrategy
+    );
 
     logger.debug(
       `(discovery-service)> Discovered ${fileList.length} files in ${rootDir}${subdirectory ? "/" + subdirectory : ""}`
@@ -57,7 +70,8 @@ class DiscoveryService {
     rootDir: string,
     fileList: string[],
     executionResult?: ExecutionResult,
-    progressCallback?: (fileCount: number, currentDir: string) => void
+    progressCallback?: (fileCount: number, currentDir: string) => void,
+    compatibilityRiskStrategy?: CompatibilityRiskStrategy
   ): Promise<void> {
     let childList: string[];
 
@@ -81,10 +95,32 @@ class DiscoveryService {
         logger.debug(`(discovery-service)> Discovered ${this.discoveryCount} files. Current directory: ${currentDir}`);
       }
 
-      try {
-        const childPath = path.join(currentDir, child);
+      // region: Handle risky names immediately (for both directories and files)
+      let tentativeChildPath = path.join(currentDir, child);
+      let tentativeChildRelativePath = getRelativePath(tentativeChildPath, rootDir);
+      if (compatibilityRiskStrategy && isPathRisky(tentativeChildRelativePath)) {
+        const result = await this.handleRiskyName(
+          tentativeChildPath,
+          tentativeChildRelativePath,
+          rootDir,
+          compatibilityRiskStrategy,
+          executionResult
+        );
+        if (result === null) {
+          // File/directory was skipped
+          continue;
+        }
+        // Update paths if renamed
+        tentativeChildPath = result.path;
+        tentativeChildRelativePath = result.relativePath;
+      }
+      // endregion: Handle risky names immediately (for both directories and files)
 
-        // Get stats without following symlinks
+      try {
+        const childPath = tentativeChildPath;
+        const childRelativePath = tentativeChildRelativePath;
+
+        // Get stats without following symlinks (use actual path after potential rename)
         const childStat = fs.lstatSync(childPath);
 
         // Skip symbolic links
@@ -99,12 +135,9 @@ class DiscoveryService {
           continue;
         }
 
-        // Get relative path
-        const relativePath = getRelativePath(childPath, rootDir);
-
         // Skip if in ignored paths (like .fs-recycle)
-        if (isIgnoredPath(relativePath)) {
-          logger.debug(`(discovery-service)> Skipping ignored path: ${relativePath}`);
+        if (isIgnoredPath(childRelativePath)) {
+          logger.debug(`(discovery-service)> Skipping ignored path: ${childRelativePath}`);
           continue;
         }
 
@@ -113,11 +146,19 @@ class DiscoveryService {
           if (progressCallback) {
             progressCallback(fileList.length, childPath);
           }
-          // Recurse into directory
-          await this.discoverFilesRecursive(childPath, rootDir, fileList, executionResult, progressCallback);
+          // Recurse into directory (use actual path after potential rename)
+          await this.discoverFilesRecursive(
+            childPath,
+            rootDir,
+            fileList,
+            executionResult,
+            progressCallback,
+            compatibilityRiskStrategy
+          );
         } else if (childStat.isFile()) {
           // Add file to list
-          fileList.push(relativePath);
+          fileList.push(childRelativePath);
+
           // Report progress every 50 files to avoid too many updates
           if (progressCallback && fileList.length % 50 === 0) {
             progressCallback(fileList.length, currentDir);
@@ -126,6 +167,10 @@ class DiscoveryService {
       } catch (error) {
         logger.logNegative(`(discovery-service)> Error processing: ${child}`);
         errorService.handleError(error);
+        if (error instanceof CompatibilityRiskError) {
+          await errorService.terminateOnError(error);
+          process.exit(2); // Just to make compiler happy
+        }
         if (executionResult) {
           executionResult.errorCount++;
           executionResult.errors.push(`Failed to process: ${child}`);
@@ -154,6 +199,90 @@ class DiscoveryService {
       return fs.statSync(filePath);
     } catch {
       return null;
+    }
+  }
+
+  /**
+   * Handles a risky name (file or directory) based on the strategy
+   * @returns Object with updated paths (or null if should be skipped)
+   */
+  private async handleRiskyName(
+    childPath: string,
+    childRelativePath: string,
+    rootDir: string,
+    strategy: CompatibilityRiskStrategy,
+    executionResult?: ExecutionResult
+  ): Promise<{ path: string; relativePath: string } | null> {
+    const safePath = getSafePath(childRelativePath);
+    const safeFullPath = path.join(rootDir, safePath);
+
+    switch (strategy) {
+      case "abort":
+        // Fail immediately with helpful message
+        const errorMessage = formatRiskyPathError(childRelativePath, safePath);
+        logger.logNegative(errorMessage);
+        throw new CompatibilityRiskError(
+          childRelativePath,
+          `Problematic name detected: ${childRelativePath}. Use --compatibility-risk-strategy to handle this.`
+        );
+
+      case "skip":
+        // Log warning and skip the file/directory
+        logger.logNegative(`(discovery-service)> Skipping risky name: ${childRelativePath}`);
+        if (executionResult) {
+          executionResult.errorCount++;
+          executionResult.errors.push(`Skipped risky name: ${childRelativePath}`);
+        }
+        return null; // Don't process
+
+      case "accept-risk":
+        // Log info and proceed with original path
+        logger.log(`(discovery-service)> Accepting risky name: ${childRelativePath}`);
+        return { path: childPath, relativePath: childRelativePath }; // Use original path
+
+      case "mitigate-or-abort":
+      case "mitigate-or-skip":
+      case "mitigate-or-accept-risk":
+        // Try to rename the file/directory on disk
+        const safeDir = path.dirname(safeFullPath);
+
+        try {
+          // Ensure parent directory exists
+          await fsPromises.mkdir(safeDir, { recursive: true });
+
+          // Rename the file/directory
+          await fsPromises.rename(childPath, safeFullPath);
+          logger.log(`(discovery-service)> Renamed risky name: ${childRelativePath} -> ${safePath}`);
+          return { path: safeFullPath, relativePath: safePath }; // Use new safe path
+        } catch (error) {
+          // Mitigation failed - handle based on fallback strategy
+          logger.logNegative(`(discovery-service)> Failed to rename ${childRelativePath}: ${(error as Error).message}`);
+
+          if (strategy === "mitigate-or-abort") {
+            // Fallback to abort
+            const errorMessage = formatRiskyPathError(childRelativePath, safePath);
+            logger.logNegative(errorMessage);
+            throw new CompatibilityRiskError(
+              childRelativePath,
+              `Failed to mitigate risky name: ${childRelativePath}. Mitigation failed and strategy is mitigate-or-abort.`
+            );
+          } else if (strategy === "mitigate-or-skip") {
+            // Fallback to skip
+            logger.logNegative(
+              `(discovery-service)> Skipping risky name after mitigation failure: ${childRelativePath}`
+            );
+            if (executionResult) {
+              executionResult.errorCount++;
+              executionResult.errors.push(`Skipped risky name after mitigation failure: ${childRelativePath}`);
+            }
+            return null; // Don't process
+          } else {
+            // strategy === "mitigate-or-accept-risk"
+            // Fallback to accept-risk
+            logger.log(`(discovery-service)> Accepting risky name after mitigation failure: ${childRelativePath}`);
+            return { path: childPath, relativePath: childRelativePath }; // Use original path
+          }
+        }
     }
   }
 }

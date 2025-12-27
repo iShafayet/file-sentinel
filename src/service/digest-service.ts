@@ -58,7 +58,8 @@ class DigestService {
         result,
         (fileCount, currentDir) => {
           displayService.updateDiscoveryProgress(fileCount, currentDir);
-        }
+        },
+        config.compatibilityRiskStrategy
       );
       displayService.stopDiscovery();
       logger.log(`(digest-service)> Discovered ${discoveredFiles.length} files`);

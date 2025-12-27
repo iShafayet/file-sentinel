@@ -1,5 +1,13 @@
 import { Command } from "commander";
-import { Config, DigestConfig, VerifyConfig, ReplicateConfig, HealConfig, CompareConfig } from "../model/config.js";
+import {
+  Config,
+  DigestConfig,
+  VerifyConfig,
+  ReplicateConfig,
+  HealConfig,
+  CompareConfig,
+  CompatibilityRiskStrategy,
+} from "../model/config.js";
 import { parseInputOption } from "./path-utils.js";
 import { getVersion } from "./misc-utils.js";
 
@@ -23,6 +31,11 @@ export function parseArgs(argv?: string[]): Config {
     )
     .option("-s, --subdirectory <path>", "Subdirectory to digest")
     .option("-a, --hash-algorithm <algo>", "Hash algorithm", "sha256")
+    .option(
+      "--compatibility-risk-strategy <strategy>",
+      "How to handle filenames with problematic characters (abort|skip|accept-risk|mitigate-or-abort|mitigate-or-skip|mitigate-or-accept-risk)",
+      "abort"
+    )
     .option("--verbose", "Verbose output", false)
     .option("--panic-on-error", "Exit on first error", false)
     .option("--dry-run", "Simulate without writing", false)
@@ -30,6 +43,22 @@ export function parseArgs(argv?: string[]): Config {
     .option("-t, --io-timeout <seconds>", "IO timeout in seconds", "30")
     .action((options) => {
       const { dir, digestFile } = parseInputOption(options.input);
+      const compatibilityRiskStrategy = (options.compatibilityRiskStrategy || "abort") as CompatibilityRiskStrategy;
+      const validStrategies = [
+        "abort",
+        "skip",
+        "accept-risk",
+        "mitigate-or-abort",
+        "mitigate-or-skip",
+        "mitigate-or-accept-risk",
+      ];
+      if (!validStrategies.includes(compatibilityRiskStrategy)) {
+        throw new Error(
+          `Invalid compatibility-risk-strategy: ${compatibilityRiskStrategy}. Must be one of: ${validStrategies.join(
+            ", "
+          )}`
+        );
+      }
       const config: DigestConfig = {
         command: "digest",
         inputDir: dir,
@@ -41,6 +70,7 @@ export function parseArgs(argv?: string[]): Config {
         dryRun: options.dryRun,
         noTty: !options.tty, // Commander.js inverts --no-tty to options.tty
         ioTimeout: parseInt(options.ioTimeout, 10),
+        compatibilityRiskStrategy: compatibilityRiskStrategy,
       };
       parsedConfig = config;
     });

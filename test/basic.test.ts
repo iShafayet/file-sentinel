@@ -30,6 +30,7 @@ describe("Basic Digest Tests - v2", (): void => {
       dryRun: false,
       noTty: true,
       ioTimeout: 30,
+      compatibilityRiskStrategy: "abort",
     };
 
     const fileSentinel = new FileSentinelProgram();
@@ -64,6 +65,7 @@ describe("Basic Digest Tests - v2", (): void => {
       dryRun: false,
       noTty: true,
       ioTimeout: 30,
+      compatibilityRiskStrategy: "abort",
     };
 
     const fileSentinel = new FileSentinelProgram();
@@ -96,6 +98,7 @@ describe("Basic Digest Tests - v2", (): void => {
       dryRun: false,
       noTty: true,
       ioTimeout: 30,
+      compatibilityRiskStrategy: "abort",
     };
 
     const fileSentinel = new FileSentinelProgram();
@@ -219,6 +222,7 @@ describe("Basic Replicate Tests - v2", (): void => {
       dryRun: false,
       noTty: true,
       ioTimeout: 30,
+      compatibilityRiskStrategy: "abort",
     };
 
     const fileSentinel = new FileSentinelProgram();
@@ -286,6 +290,7 @@ describe("Basic Heal Tests - v2", (): void => {
       dryRun: false,
       noTty: true,
       ioTimeout: 30,
+      compatibilityRiskStrategy: "abort",
     };
 
     const fileSentinel = new FileSentinelProgram();
