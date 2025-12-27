@@ -1,37 +1,59 @@
-import cliProgress from "cli-progress";
 import { ExecutionResult } from "../model/execution-results.js";
 import { Config } from "../model/config.js";
-import { logger } from "../lib/logger.js";
-import * as readline from "readline";
 import { isTTY, isStdinTTY } from "../utility/terminal-utils.js";
+import { logger } from "../lib/logger.js";
+import { getVersion } from "../utility/misc-utils.js";
 import * as path from "path";
+// @ts-ignore - neo-blessed doesn't have types
+import blessed from "neo-blessed";
 
-const BAR_SIZE = 20;
 const CONSOLE_WIDTH = 80;
-const MAX_FILE_NAME_LENGTH = CONSOLE_WIDTH - BAR_SIZE - 10;
+const MAX_FILE_NAME_LENGTH = 50;
 
-let nonTtyTaskPublishedAt = 0;
-let nonTtyFilePublishedAt = 0;
-const NON_TTY_PUBLISH_INTERVAL = 5_000;
+// Data rate tracking
+interface DataRateTracker {
+  bytesProcessed: number;
+  startTime: number;
+  lastUpdateTime: number;
+  lastBytesProcessed: number;
+  currentRate: number; // bytes per second
+}
 
 /**
- * Display service for managing in-place UI updates and progress display
+ * Display service for managing professional TUI with split-pane layout
  */
 class DisplayService {
-  private multibar: cliProgress.MultiBar | null = null;
-  private taskBar: cliProgress.SingleBar | null = null;
-  private fileBar: cliProgress.SingleBar | null = null;
-  private statsLines: string[] = [];
+  private screen: blessed.Widgets.Screen | null = null;
+  private logBox: blessed.Widgets.Log | null = null;
+  private statsLeftBox: blessed.Widgets.Box | null = null;
+  private statsRightBox: blessed.Widgets.Box | null = null;
   private isActive = false;
   private title = "";
   private command = "";
   private directory = "";
   private config: Config | null = null;
+  private discoveryMode = false;
   private discoveryInterval: NodeJS.Timeout | null = null;
   private spinnerFrames = ["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"];
   private spinnerIndex = 0;
-  private discoveryMode = false;
-  private discoveryBar: cliProgress.SingleBar | null = null;
+
+  // Progress tracking
+  private totalFiles = 0;
+  private processedFiles = 0;
+  private currentFileName = "";
+  private executionResult: ExecutionResult | null = null;
+
+  // Data rate tracking
+  private dataRateTracker: DataRateTracker = {
+    bytesProcessed: 0,
+    startTime: Date.now(),
+    lastUpdateTime: Date.now(),
+    lastBytesProcessed: 0,
+    currentRate: 0,
+  };
+
+  // Update interval for stats refresh
+  private statsUpdateInterval: NodeJS.Timeout | null = null;
 
   /**
    * Initializes the display with title, command, and directory info
@@ -56,122 +78,295 @@ class DisplayService {
     this.title = "FILE SENTINEL";
 
     // Only show UI elements if in TTY mode
-    if (!isTTY()) {
-      // Non-TTY mode: just log the basic info
-      logger.log(`Starting ${this.command} command on ${this.directory}`);
+    if (!isTTY() || config.noTty) {
+      // Non-TTY mode: logging is handled by ProgressService
       return;
     }
 
-    // Clear screen and show header
-    console.clear();
-    this.printHeader();
+    this.initializeBlessedUI();
 
-    // Create multibar for progress tracking
-    this.multibar = new cliProgress.MultiBar(
-      {
-        clearOnComplete: false,
-        hideCursor: true,
-        format: (options: any, params: any, payload: any) => {
-          // Custom format for discovery mode
-          if (payload.spinner !== undefined) {
-            return `${payload.spinner} Discovering files | Scanning: ${payload.directory} | Found: ${payload.count}`;
-          }
-          // Normal progress bar format
-          const percentage = Math.round(params.progress * 100);
-          const bar = options.barCompleteString.substr(0, Math.round(params.progress * options.barsize));
-          const incomplete = options.barIncompleteString.substr(0, options.barsize - bar.length);
-          return `${bar}${incomplete} | ${percentage}% | ${payload.label}: ${params.value}/${params.total}`;
-        },
-        barCompleteChar: "\u2588",
-        barIncompleteChar: "\u2591",
-        stopOnComplete: true,
-        barsize: 20,
-      },
-      cliProgress.Presets.shades_classic
-    );
-
-    // Create task progress bar
-    this.taskBar = this.multibar.create(100, 0, { label: "Overall Progress" });
-
-    // Create file progress bar
-    this.fileBar = this.multibar.create(100, 0, { label: "Current File" });
-
-    // Initialize stats
-    this.statsLines = [];
+    // Register logger callback to stream logs to display
+    logger.setLogStreamCallback((level: string, message: string) => {
+      this.addLogToLogPane(level, message);
+    });
   }
 
   /**
-   * Prints the header section with command-specific information
+   * Initialize the blessed UI with horizontal split-pane layout
    */
-  private printHeader(): void {
-    if (!this.config) return;
+  private initializeBlessedUI(): void {
+    // Create screen
+    this.screen = blessed.screen({
+      smartCSR: true,
+      fullUnicode: true,
+      title: "File Sentinel",
+    });
 
-    console.log("═".repeat(CONSOLE_WIDTH));
-    console.log(`  ${this.title}`);
-    console.log("═".repeat(CONSOLE_WIDTH));
-    console.log(`  Command: ${this.command}`);
-    console.log("─".repeat(CONSOLE_WIDTH));
+    // Handle exit
+    this.screen.key(["escape", "q", "C-c"], () => {
+      this.cleanup();
+      return process.exit(0);
+    });
 
-    // Command-specific information
-    switch (this.config.command) {
+    // Create title bar with background color
+    const version = getVersion();
+    const titleBar = blessed.box({
+      top: 0,
+      left: 0,
+      width: "100%",
+      height: 1,
+      content: ` File Sentinel v${version} `,
+      tags: true,
+      style: {
+        fg: "white",
+        bg: "blue",
+        bold: true,
+      },
+    });
+
+    // Create stats area on top (horizontal split: two columns)
+    // Left column for stats
+    const statsLeftBox = blessed.box({
+      top: 1,
+      left: 0,
+      width: "50%",
+      height: "40%",
+      label: " {bold}Metrics{/bold} ",
+      content: "",
+      tags: true,
+      border: {
+        type: "line",
+      },
+      style: {
+        fg: "white",
+        border: {
+          fg: "green",
+        },
+      },
+    });
+
+    // Right column for stats
+    const statsRightBox = blessed.box({
+      top: 1,
+      left: "50%",
+      width: "50%",
+      height: "40%",
+      label: " {bold}Status{/bold} ",
+      content: "",
+      tags: true,
+      border: {
+        type: "line",
+      },
+      style: {
+        fg: "white",
+        border: {
+          fg: "green",
+        },
+      },
+    });
+
+    // Create logs area on bottom
+    const logBox = blessed.log({
+      top: "41%",
+      left: 0,
+      width: "100%",
+      height: "100%-41%",
+      label: " {bold}Logs{/bold} ",
+      tags: true,
+      border: {
+        type: "line",
+      },
+      style: {
+        fg: "white",
+        border: {
+          fg: "blue",
+        },
+      },
+      scrollable: true,
+      alwaysScroll: true,
+      scrollbar: {
+        ch: " ",
+        track: {
+          bg: "black",
+        },
+        style: {
+          bg: "blue",
+        },
+      },
+    });
+
+    this.logBox = logBox;
+    this.statsLeftBox = statsLeftBox;
+    this.statsRightBox = statsRightBox;
+
+    // Append to screen
+    this.screen.append(titleBar);
+    this.screen.append(statsLeftBox);
+    this.screen.append(statsRightBox);
+    this.screen.append(logBox);
+
+    // Initialize data rate tracker
+    this.dataRateTracker = {
+      bytesProcessed: 0,
+      startTime: Date.now(),
+      lastUpdateTime: Date.now(),
+      lastBytesProcessed: 0,
+      currentRate: 0,
+    };
+
+    // Start stats update interval (update every 500ms for smooth rate display)
+    this.statsUpdateInterval = setInterval(() => {
+      this.updateStatsDisplay();
+    }, 500);
+
+    // Initial render
+    this.screen.render();
+
+    // Log initial message
+    this.addLogToLogPane("System", `Starting ${this.command} operation...`);
+  }
+
+  /**
+   * Add a log entry to the log pane
+   */
+  private addLogToLogPane(level: string, message: string): void {
+    if (!this.logBox || !this.screen) return;
+
+    try {
+      const timestamp = new Date().toLocaleTimeString();
+      const logLine = `[${timestamp}] ${level}: ${message}`;
+      this.logBox.log(logLine);
+      this.screen.render();
+    } catch (error) {
+      // Silently fail if UI is not available
+    }
+  }
+
+  /**
+   * Update the stats display in two columns
+   */
+  private updateStatsDisplay(): void {
+    if (!this.statsLeftBox || !this.statsRightBox) return;
+
+    const leftStats: string[] = [];
+    const rightStats: string[] = [];
+
+    // If no execution result yet, show basic info
+    if (!this.executionResult) {
+      leftStats.push(`{bold}Progress{/bold}`);
+      leftStats.push(`  Files: ${this.processedFiles}/${this.totalFiles}`);
+      leftStats.push(`  Remaining: ${Math.max(0, this.totalFiles - this.processedFiles)}`);
+      leftStats.push("");
+      leftStats.push(`{bold}Data Rate{/bold}`);
+      leftStats.push(`  0.00 MiB/s`);
+
+      rightStats.push(`{bold}Status{/bold}`);
+      rightStats.push(`  Initializing...`);
+
+      if (this.currentFileName) {
+        rightStats.push("");
+        rightStats.push(`{bold}Current File{/bold}`);
+        const truncated = this.truncateFileName(this.currentFileName, MAX_FILE_NAME_LENGTH);
+        rightStats.push(`  {dim}${truncated}{/dim}`);
+      }
+
+      this.statsLeftBox.setContent(leftStats.join("\n"));
+      this.statsRightBox.setContent(rightStats.join("\n"));
+      this.screen?.render();
+      return;
+    }
+
+    // Calculate data rate
+    const now = Date.now();
+    const timeElapsed = (now - this.dataRateTracker.lastUpdateTime) / 1000; // seconds
+    if (timeElapsed > 0.1) {
+      // Update rate every 100ms minimum
+      const bytesDelta = this.dataRateTracker.bytesProcessed - this.dataRateTracker.lastBytesProcessed;
+      this.dataRateTracker.currentRate = bytesDelta / timeElapsed;
+      this.dataRateTracker.lastUpdateTime = now;
+      this.dataRateTracker.lastBytesProcessed = this.dataRateTracker.bytesProcessed;
+    }
+
+    const dataRateMiB = this.dataRateTracker.currentRate / (1024 * 1024);
+    const dataRateStr = dataRateMiB > 0 ? dataRateMiB.toFixed(2) : "0.00";
+
+    // Warning icon for errors
+    const warningIcon = this.executionResult.errorCount > 0 ? "⚠ " : "";
+    const hasErrors = this.executionResult.errorCount > 0;
+
+    // Left column: Progress and Data metrics
+    leftStats.push(`{bold}Progress{/bold}`);
+    leftStats.push(`  Files: ${this.processedFiles}/${this.totalFiles}`);
+    leftStats.push(`  Remaining: ${Math.max(0, this.totalFiles - this.processedFiles)}`);
+    leftStats.push("");
+    leftStats.push(`{bold}Data Rate{/bold}`);
+    leftStats.push(`  ${dataRateStr} MiB/s`);
+    leftStats.push("");
+    leftStats.push(`{bold}Data Processed{/bold}`);
+    leftStats.push(`  ${this.formatBytes(this.executionResult.totalBytesProcessed)}`);
+
+    // Right column: Status and Command-specific stats
+    rightStats.push(`{bold}Status{/bold}`);
+    if (hasErrors) {
+      rightStats.push(`  ${warningIcon}{red-fg}Errors: ${this.executionResult.errorCount}{/red-fg}`);
+    } else {
+      rightStats.push(`  Errors: ${this.executionResult.errorCount}`);
+    }
+    rightStats.push("");
+    rightStats.push(`{bold}Running Time{/bold}`);
+    const runningTime = this.getFormattedRunningTime(
+      this.executionResult.startedEpoch,
+      this.executionResult.completedEpoch || Date.now()
+    );
+    rightStats.push(`  ${runningTime}`);
+    rightStats.push("");
+
+    // Command-specific stats
+    switch (this.executionResult.command) {
       case "digest":
-        console.log(`  Input Directory: ${this.config.inputDir}`);
-        console.log(`  Digest File: ${path.resolve(this.config.digestFile)}`);
+        rightStats.push(`{bold}Digest Stats{/bold}`);
+        rightStats.push(`  Added: ${this.executionResult.filesAdded || 0}`);
+        rightStats.push(`  Updated: ${this.executionResult.filesUpdated || 0}`);
+        rightStats.push(`  Unchanged: ${this.executionResult.filesUnchanged || 0}`);
+        rightStats.push(`  Deleted: ${this.executionResult.filesDeleted || 0}`);
         break;
-
       case "verify":
-        console.log(`  Input Directory: ${this.config.inputDir}`);
-        console.log(`  Digest File: ${path.resolve(this.config.digestFile)}`);
-        if (this.config.subdirectory) {
-          console.log(`  Subdirectory: ${this.config.subdirectory}`);
-        }
+        rightStats.push(`{bold}Verify Stats{/bold}`);
+        rightStats.push(`  Verified: ${this.executionResult.filesVerified || 0}`);
+        rightStats.push(`  Failed: ${this.executionResult.filesFailed || 0}`);
+        rightStats.push(`  Missing: ${this.executionResult.filesMissing || 0}`);
+        rightStats.push(`  Extra: ${this.executionResult.filesExtra || 0}`);
         break;
-
       case "replicate":
-        console.log(`  Source Directory: ${this.config.sourceDir}`);
-        console.log(`  Source Digest: ${path.resolve(this.config.sourceDigestFile)}`);
-        console.log(`  Destination Directory: ${this.config.destDir}`);
-        console.log(`  Destination Digest: ${path.resolve(this.config.destDigestFile)}`);
-        if (this.config.subdirectory) {
-          console.log(`  Subdirectory: ${this.config.subdirectory}`);
-        }
-        console.log(`  Mirrors: ${this.config.mirrors.length}`);
-        if (this.config.mirrors.length > 0) {
-          this.config.mirrors.forEach((mirror, index) => {
-            console.log(`    ${index + 1}. ${mirror.dir} (${path.resolve(mirror.digestFile)})`);
-          });
-        }
+        rightStats.push(`{bold}Replicate Stats{/bold}`);
+        rightStats.push(`  Copied: ${this.executionResult.filesCopied || 0}`);
+        rightStats.push(`  Deleted: ${this.executionResult.filesDeleted || 0}`);
+        rightStats.push(`  Failed: ${this.executionResult.filesRecoveryFailed || 0}`);
         break;
-
       case "heal":
-        console.log(`  Input Directory: ${this.config.inputDir}`);
-        console.log(`  Digest File: ${path.resolve(this.config.digestFile)}`);
-        if (this.config.subdirectory) {
-          console.log(`  Subdirectory: ${this.config.subdirectory}`);
-        }
-        console.log(`  Mirrors: ${this.config.mirrors.length}`);
-        if (this.config.mirrors.length > 0) {
-          this.config.mirrors.forEach((mirror, index) => {
-            console.log(`    ${index + 1}. ${mirror.dir} (${path.resolve(mirror.digestFile)})`);
-          });
-        }
+        rightStats.push(`{bold}Heal Stats{/bold}`);
+        rightStats.push(`  Healed: ${this.executionResult.filesRecovered || 0}`);
+        rightStats.push(`  Verified: ${this.executionResult.filesVerified || 0}`);
+        rightStats.push(`  Failed: ${this.executionResult.filesRecoveryFailed || 0}`);
+        break;
+      case "compare":
+        rightStats.push(`{bold}Compare Stats{/bold}`);
+        rightStats.push(`  To be Created: ${this.executionResult.filesToBeCreated || 0}`);
+        rightStats.push(`  To be Updated: ${this.executionResult.filesToBeUpdated || 0}`);
+        rightStats.push(`  To be Deleted: ${this.executionResult.filesToBeDeleted || 0}`);
         break;
     }
 
-    // Common configuration options
-    console.log("─".repeat(CONSOLE_WIDTH));
-    console.log(`  Configuration:`);
-    console.log(`    Hash Algorithm: ${this.config.hashAlgorithm.toUpperCase()}`);
-    console.log(`    Dry Run: ${this.config.dryRun ? "Yes" : "No"}`);
-    console.log(`    Verbose: ${this.config.verbose ? "Yes" : "No"}`);
-    console.log(`    Panic on Error: ${this.config.panicOnError ? "Yes" : "No"}`);
-    console.log(`    I/O Timeout: ${this.config.ioTimeout}ms`);
-
-    if (this.config.command === "replicate") {
-      console.log(`    Permanent Delete: ${this.config.permaDelete ? "Yes" : "No"}`);
+    if (this.currentFileName) {
+      rightStats.push("");
+      rightStats.push(`{bold}Current File{/bold}`);
+      const truncated = this.truncateFileName(this.currentFileName, MAX_FILE_NAME_LENGTH);
+      rightStats.push(`  {dim}${truncated}{/dim}`);
     }
 
-    console.log("─".repeat(CONSOLE_WIDTH));
+    this.statsLeftBox.setContent(leftStats.join("\n"));
+    this.statsRightBox.setContent(rightStats.join("\n"));
+    this.screen?.render();
   }
 
   /**
@@ -180,20 +375,17 @@ class DisplayService {
   public updateTaskProgress(current: number, total: number, label?: string): void {
     if (!this.isActive) return;
 
-    if (!isTTY() && Date.now() - nonTtyTaskPublishedAt > NON_TTY_PUBLISH_INTERVAL) {
-      logger.log(`(display-service)> Task progress: ${current}/${total} ${label}`);
-      nonTtyTaskPublishedAt = Date.now();
+    // Non-TTY logging is handled by ProgressService
+    if (!isTTY()) {
       return;
     }
 
-    if (!this.taskBar) return;
+    this.totalFiles = total;
+    this.processedFiles = current;
 
-    const percentage = total > 0 ? Math.floor((current / total) * 100) : 0;
-    this.taskBar.update(percentage, {
-      label: label || "Overall Progress",
-      value: current,
-      total: total,
-    });
+    if (label) {
+      this.addLogToLogPane("Progress", label);
+    }
   }
 
   /**
@@ -202,21 +394,18 @@ class DisplayService {
   public updateFileProgress(current: number, total: number, fileName?: string): void {
     if (!this.isActive) return;
 
-    if (!isTTY() && Date.now() - nonTtyFilePublishedAt > NON_TTY_PUBLISH_INTERVAL) {
-      logger.log(`(display-service)> File progress: ${current}/${total} ${fileName}`);
-      nonTtyFilePublishedAt = Date.now();
+    // Non-TTY logging is handled by ProgressService
+    if (!isTTY()) {
       return;
     }
 
-    if (!this.fileBar) return;
-
-    const percentage = total > 0 ? Math.floor((current / total) * 100) : 0;
-    const displayName = fileName ? this.truncateFileName(fileName, MAX_FILE_NAME_LENGTH) : "Processing...";
-    this.fileBar.update(percentage, {
-      label: displayName,
-      value: current,
-      total: total,
-    });
+    if (fileName) {
+      this.currentFileName = fileName;
+      // Update data rate tracker with file progress
+      if (this.executionResult) {
+        this.dataRateTracker.bytesProcessed = this.executionResult.totalBytesProcessed;
+      }
+    }
   }
 
   /**
@@ -225,6 +414,189 @@ class DisplayService {
   public updateStats(executionResult: ExecutionResult): void {
     if (!this.isActive) return;
 
+    this.executionResult = executionResult;
+    this.dataRateTracker.bytesProcessed = executionResult.totalBytesProcessed;
+
+    // Update display immediately
+    this.updateStatsDisplay();
+
+    // Log errors as they occur
+    if (executionResult.errorCount > 0) {
+      const recentErrors = executionResult.errors.slice(-5); // Last 5 errors
+      recentErrors.forEach((error) => {
+        this.addLogToLogPane("Error", error);
+      });
+    }
+  }
+
+  /**
+   * Starts discovery mode - shows spinner (not in logs for TTY mode)
+   */
+  public startDiscovery(): void {
+    if (!this.isActive || !this.screen) return;
+
+    this.discoveryMode = true;
+    // Non-TTY logging is handled by ProgressService
+
+    // Start spinner animation
+    this.spinnerIndex = 0;
+    this.discoveryInterval = setInterval(() => {
+      this.spinnerIndex = (this.spinnerIndex + 1) % this.spinnerFrames.length;
+      // Update stats display to show discovery progress
+      if (this.statsLeftBox) {
+        this.updateStatsDisplay();
+      }
+    }, 80);
+  }
+
+  /**
+   * Updates discovery progress (not logged in TTY mode)
+   */
+  public updateDiscoveryProgress(fileCount: number, currentDir: string): void {
+    if (!this.isActive || !this.discoveryMode) return;
+
+    // Non-TTY logging is handled by ProgressService
+    // In TTY mode, just update stats display
+  }
+
+  /**
+   * Stops discovery mode
+   */
+  public stopDiscovery(): void {
+    if (this.discoveryInterval) {
+      clearInterval(this.discoveryInterval);
+      this.discoveryInterval = null;
+    }
+
+    this.discoveryMode = false;
+    this.addLogToLogPane("Discovery", "File discovery complete.");
+  }
+
+  /**
+   * Stops the display and shows final stats
+   */
+  public stop(): void {
+    if (!this.isActive) return;
+
+    // Stop intervals
+    if (this.discoveryInterval) {
+      clearInterval(this.discoveryInterval);
+      this.discoveryInterval = null;
+    }
+
+    if (this.statsUpdateInterval) {
+      clearInterval(this.statsUpdateInterval);
+      this.statsUpdateInterval = null;
+    }
+
+    // Final stats update
+    if (this.executionResult) {
+      this.updateStatsDisplay();
+    }
+
+    this.addLogToLogPane("System", "Operation completed.");
+
+    // In non-TTY mode, show summary
+    if (!isTTY() && this.executionResult) {
+      console.log("─".repeat(CONSOLE_WIDTH));
+      console.log("SUMMARY:");
+      const stats = this.getStatsLines(this.executionResult);
+      stats.forEach((line) => console.log(`  ${line}`));
+      console.log("═".repeat(CONSOLE_WIDTH));
+    }
+
+    this.isActive = false;
+  }
+
+  /**
+   * Cleanup blessed UI
+   */
+  private cleanup(): void {
+    if (this.statsUpdateInterval) {
+      clearInterval(this.statsUpdateInterval);
+      this.statsUpdateInterval = null;
+    }
+    if (this.discoveryInterval) {
+      clearInterval(this.discoveryInterval);
+      this.discoveryInterval = null;
+    }
+    if (this.screen) {
+      this.screen.destroy();
+      this.screen = null;
+    }
+
+    // Unregister logger callback
+    logger.setLogStreamCallback(null);
+  }
+
+  /**
+   * Waits for user to press any key and then displays buffered logs
+   */
+  public async stopDisplayAndShowLogs({ waitForKeyPress }: { waitForKeyPress: boolean }): Promise<void> {
+    this.stop();
+    this.cleanup();
+
+    const bufferedLogCount = logger.getBufferedLogCount();
+
+    if (bufferedLogCount === 0) {
+      return;
+    }
+
+    // Skip keypress wait if not in TTY mode
+    if (!isTTY() || !waitForKeyPress) {
+      console.log("\n");
+      logger.flushBufferedLogs();
+      return;
+    }
+
+    console.log("\n");
+    console.log(`${bufferedLogCount} log entries captured during operation.`);
+    console.log("Press any key to view detailed logs, or Ctrl+C to exit...");
+
+    return new Promise((resolve) => {
+      const readline = require("readline");
+      readline.emitKeypressEvents(process.stdin);
+      if (isStdinTTY()) {
+        process.stdin.setRawMode(true);
+      }
+
+      const onKeyPress = () => {
+        if (isStdinTTY()) {
+          process.stdin.setRawMode(false);
+        }
+        process.stdin.removeListener("keypress", onKeyPress);
+        process.stdin.pause();
+
+        console.clear();
+        logger.flushBufferedLogs();
+        resolve();
+      };
+
+      process.stdin.on("keypress", onKeyPress);
+      process.stdin.resume();
+    });
+  }
+
+  /**
+   * Checks if display is active
+   */
+  public isDisplayActive(): boolean {
+    return this.isActive;
+  }
+
+  /**
+   * Logs final execution result (deprecated - logging is now handled by ProgressService)
+   * This method is kept for backward compatibility but does nothing
+   */
+  public logExecutionResult(executionResult: ExecutionResult, verbose: boolean): void {
+    // Logging is now handled by ProgressService.logExecutionResult()
+    // This method is kept to maintain the interface but does nothing
+  }
+
+  /**
+   * Get stats lines for summary
+   */
+  private getStatsLines(executionResult: ExecutionResult): string[] {
     const stats: string[] = [];
     const runningTime = this.getFormattedRunningTime(executionResult.startedEpoch, executionResult.completedEpoch);
     const errorCount = executionResult.errorCount;
@@ -261,259 +633,19 @@ class DisplayService {
         stats.push(`Files Verified: ${executionResult.filesVerified || 0}`);
         stats.push(`Files Failed: ${executionResult.filesRecoveryFailed || 0}`);
         break;
+
+      case "compare":
+        stats.push(`Files To Be Created: ${executionResult.filesToBeCreated || 0}`);
+        stats.push(`Files To Be Updated: ${executionResult.filesToBeUpdated || 0}`);
+        stats.push(`Files To Be Deleted: ${executionResult.filesToBeDeleted || 0}`);
+        break;
     }
 
     stats.push(`Errors: ${errorCount}`);
     stats.push(`Running Time: ${runningTime}`);
     stats.push(`Data Processed: ${this.formatBytes(executionResult.totalBytesProcessed)}`);
 
-    this.statsLines = stats;
-    this.refreshStats();
-  }
-
-  /**
-   * Refreshes the stats display area
-   */
-  private refreshStats(): void {
-    if (!this.isActive) return;
-
-    // Note: cli-progress automatically manages the display area
-    // Stats will be shown after stopping the multibar
-  }
-
-  /**
-   * Starts discovery mode - shows spinner with progress bar
-   */
-  public startDiscovery(): void {
-    if (!this.isActive || !this.multibar) return;
-
-    this.discoveryMode = true;
-
-    // Create a discovery bar with custom format
-    this.discoveryBar = this.multibar.create(1, 0, {
-      spinner: this.spinnerFrames[0],
-      directory: "Initializing...",
-      count: "0",
-      barsize: 20,
-    });
-
-    // Start spinner animation
-    this.spinnerIndex = 0;
-    this.discoveryInterval = setInterval(() => {
-      this.spinnerIndex = (this.spinnerIndex + 1) % this.spinnerFrames.length;
-      // Update spinner frame
-      if (this.discoveryBar) {
-        this.discoveryBar.update(0, {
-          spinner: this.spinnerFrames[this.spinnerIndex],
-        });
-      }
-    }, 80); // Update every 80ms for smooth animation
-  }
-
-  /**
-   * Updates discovery progress with spinner, current directory, and file count
-   */
-  public updateDiscoveryProgress(fileCount: number, currentDir: string): void {
-    if (!this.isActive || !this.discoveryMode || !this.discoveryBar) return;
-
-    const truncatedDir = this.truncateFileName(currentDir, MAX_FILE_NAME_LENGTH);
-
-    // Update discovery bar with current info
-    this.discoveryBar.update(0, {
-      spinner: this.spinnerFrames[this.spinnerIndex],
-      directory: truncatedDir,
-      count: fileCount.toLocaleString(),
-    });
-  }
-
-  /**
-   * Stops discovery mode and prepares for normal progress display
-   */
-  public stopDiscovery(): void {
-    if (this.discoveryInterval) {
-      clearInterval(this.discoveryInterval);
-      this.discoveryInterval = null;
-    }
-
-    // Remove discovery bar
-    if (this.discoveryBar && this.multibar) {
-      this.multibar.remove(this.discoveryBar);
-      this.discoveryBar = null;
-    }
-
-    this.discoveryMode = false;
-  }
-
-  /**
-   * Stops the display and shows final stats
-   */
-  public stop(): void {
-    if (!this.isActive) return;
-
-    // Stop discovery spinner if running
-    if (this.discoveryInterval) {
-      clearInterval(this.discoveryInterval);
-      this.discoveryInterval = null;
-    }
-
-    // Stop all progress bars
-    if (this.multibar) {
-      this.multibar.stop();
-    }
-
-    // Display final stats (only in TTY mode)
-    if (isTTY()) {
-      console.log("─".repeat(CONSOLE_WIDTH));
-      console.log("SUMMARY:");
-      this.statsLines.forEach((line) => console.log(`  ${line}`));
-      console.log("═".repeat(CONSOLE_WIDTH));
-    }
-
-    this.isActive = false;
-  }
-
-  /**
-   * Waits for user to press any key and then displays buffered logs
-   */
-  public async stopDisplayAndShowLogs({ waitForKeyPress }: { waitForKeyPress: boolean }): Promise<void> {
-    this.stop();
-
-    if (this.multibar && this.taskBar) {
-      this.multibar?.remove(this.taskBar);
-    }
-    if (this.multibar && this.fileBar) {
-      this.multibar?.remove(this.fileBar);
-    }
-    if (this.multibar && this.discoveryBar) {
-      this.multibar?.remove(this.discoveryBar);
-    }
-
-    const bufferedLogCount = logger.getBufferedLogCount();
-
-    if (bufferedLogCount === 0) {
-      return;
-    }
-
-    // Skip keypress wait if not in TTY mode (e.g., in tests, CI, or piped output)
-    // Check if we're in TTY mode - if not, auto-flush
-    if (!isTTY() || !waitForKeyPress) {
-      // In non-interactive mode, just show the logs automatically
-      console.log("\n");
-      logger.flushBufferedLogs();
-      return;
-    }
-
-    console.log("\n");
-    console.log(`${bufferedLogCount} log entries captured during operation.`);
-    console.log("Press any key to view detailed logs, or Ctrl+C to exit...");
-
-    return new Promise((resolve) => {
-      // Set raw mode to capture single keypress
-      readline.emitKeypressEvents(process.stdin);
-      if (isStdinTTY()) {
-        process.stdin.setRawMode(true);
-      }
-
-      const onKeyPress = () => {
-        // Restore normal mode
-        if (isStdinTTY()) {
-          process.stdin.setRawMode(false);
-        }
-        process.stdin.removeListener("keypress", onKeyPress);
-        process.stdin.pause();
-
-        console.clear();
-
-        // Flush and display logs
-        logger.flushBufferedLogs();
-        resolve();
-      };
-
-      process.stdin.on("keypress", onKeyPress);
-      process.stdin.resume();
-    });
-  }
-
-  /**
-   * Checks if display is active
-   */
-  public isDisplayActive(): boolean {
-    return this.isActive;
-  }
-
-  /**
-   * Logs final execution result
-   */
-  public logExecutionResult(executionResult: ExecutionResult, verbose: boolean): void {
-    const runningTime = this.getFormattedRunningTime(executionResult.startedEpoch, executionResult.completedEpoch);
-    const bytesProcessed = this.formatBytes(executionResult.totalBytesProcessed);
-
-    logger.log("=".repeat(CONSOLE_WIDTH));
-    logger.log(
-      `${executionResult.command.toUpperCase()} Operation ${executionResult.success ? "COMPLETED" : "FAILED"}`
-    );
-    logger.log("=".repeat(CONSOLE_WIDTH));
-
-    // Common stats
-    logger.log(`Total Files Processed: ${executionResult.totalFilesProcessed}`);
-    logger.log(`Total Bytes Processed: ${bytesProcessed}`);
-    logger.log(`Execution Time: ${runningTime}`);
-    logger.log(`Errors: ${executionResult.errorCount}`);
-
-    // Command-specific stats
-    switch (executionResult.command) {
-      case "digest":
-        logger.log(`Files Added: ${executionResult.filesAdded || 0}`);
-        logger.log(`Files Updated: ${executionResult.filesUpdated || 0}`);
-        logger.log(`Files Unchanged: ${executionResult.filesUnchanged || 0}`);
-        logger.log(`Files Deleted: ${executionResult.filesDeleted || 0}`);
-        break;
-
-      case "verify":
-        logger.log(`Files Verified: ${executionResult.filesVerified || 0}`);
-        logger.log(`Files Failed: ${executionResult.filesFailed || 0}`);
-        logger.log(`Files Missing: ${executionResult.filesMissing || 0}`);
-        logger.log(`Files Extra: ${executionResult.filesExtra || 0}`);
-        break;
-
-      case "replicate":
-        logger.log(`Files Copied: ${executionResult.filesCopied || 0}`);
-        logger.log(`Files Deleted: ${executionResult.filesDeleted || 0}`);
-        logger.log(`Files Recovery Failed: ${executionResult.filesRecoveryFailed || 0}`);
-        break;
-
-      case "heal":
-        logger.log(`Files Healed: ${executionResult.filesRecovered || 0}`);
-        logger.log(`Files Verified: ${executionResult.filesVerified || 0}`);
-        logger.log(`Files Recovery Failed: ${executionResult.filesRecoveryFailed || 0}`);
-        break;
-
-      case "compare":
-        logger.log(`New Files: ${executionResult.filesNew || 0}`);
-        logger.log(`Changed Files: ${executionResult.filesChanged || 0}`);
-        logger.log(`Deleted Files: ${executionResult.filesDeleted || 0}`);
-        break;
-    }
-
-    // Show errors if any
-    if (executionResult.errors.length > 0 && verbose) {
-      logger.logNegative("\nErrors encountered:");
-      executionResult.errors.forEach((error, index) => {
-        logger.logNegative(`  ${index + 1}. ${error}`);
-      });
-    } else if (executionResult.errors.length > 0) {
-      logger.logNegative(`\n${executionResult.errors.length} errors encountered. Run with --verbose to see details.`);
-    }
-
-    logger.log("=".repeat(CONSOLE_WIDTH));
-
-    if (executionResult.success) {
-      logger.log("Operation completed successfully");
-    } else {
-      logger.logNegative("Operation completed with errors");
-    }
-
-    logger.log("=".repeat(CONSOLE_WIDTH));
+    return stats;
   }
 
   /**
