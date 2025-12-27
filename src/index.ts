@@ -57,7 +57,7 @@ export class FileSentinelProgram {
     logger.log("(program)> Command execution complete");
 
     // After operation completes, wait for keypress to show logs
-    await displayService.waitForKeyPressAndShowLogs();
+    await displayService.stopDisplayAndShowLogs({ waitForKeyPress: true });
 
     return result;
   }
@@ -79,6 +79,7 @@ process.on("uncaughtException", function (err) {
   console.error("Message:", err.message);
   console.error("Stack:", err.stack);
   console.error("=".repeat(80));
+  logger.flushBufferedLogs();
   process.exit(1);
 });
 
@@ -89,5 +90,6 @@ process.on("unhandledRejection", function (reason, promise) {
   console.error("Reason:", reason);
   console.error("Promise:", promise);
   console.error("=".repeat(80));
+  logger.flushBufferedLogs();
   process.exit(1);
 });

@@ -1,5 +1,6 @@
 import { logger } from "../lib/logger.js";
 import { Config } from "../model/config.js";
+import { displayService } from "./display-service.js";
 
 class ErrorService {
   private config: Config | null = null;
@@ -26,6 +27,21 @@ class ErrorService {
       logger.logNegative("(error-service)> Panicking due to error");
       process.exit(1);
     }
+  }
+
+  async terminateOnError(error: Error | unknown): Promise<void> {
+    if (!this.config) {
+      throw new Error("Fatal error: Config is not set");
+      process.exit(2);
+    }
+    if (error instanceof Error) {
+      logger.logNegative(`(error-service)> Terminating due to error: ${error.message}`);
+    } else {
+      logger.logNegative(`(error-service)> Terminating due to error: ${String(error)}`);
+    }
+
+    await displayService.stopDisplayAndShowLogs({ waitForKeyPress: false });
+    process.exit(1);
   }
 }
 
