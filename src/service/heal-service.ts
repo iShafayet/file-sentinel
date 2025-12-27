@@ -1,10 +1,10 @@
 import { logger } from "../lib/logger.js";
 import { HealConfig } from "../model/config.js";
-import { ExecutionResult, createExecutionResult, completeExecution, addError } from "../model/execution-results.js";
+import { ExecutionResult } from "../model/execution-results.js";
 import { DatabaseService } from "./database-service.js";
 import { cryptoService } from "./crypto-service.js";
 import { fileService } from "./file-service.js";
-import { displayService } from "./display-service.js";
+import { progressService } from "./progress-service.js";
 import { errorService } from "./error-service.js";
 import { joinPath } from "../utility/path-utils.js";
 import { getFileSystemErrorMessage } from "../utility/error-utils.js";
@@ -20,14 +20,9 @@ class HealService {
    * Executes the heal command
    */
   async execute(config: HealConfig): Promise<ExecutionResult> {
-    const result = createExecutionResult("heal");
-    result.filesVerified = 0;
-    result.filesRecovered = 0;
-    result.filesRecoveryFailed = 0;
-
-    // Enable buffering and start display
+    // Enable buffering and start display (creates ExecutionResult)
     logger.enableBuffering();
-    displayService.start(config);
+    progressService.start(config);
 
     logger.log("=".repeat(80));
     logger.log("Starting Heal Operation");
@@ -72,9 +67,9 @@ class HealService {
         const relativePath = digestFile.relative_path;
 
         // Update progress display
-        displayService.updateTaskProgress(i, digestFiles.length, "Healing files");
-        displayService.updateFileProgress(0, 100, relativePath);
-        displayService.updateStats(result);
+        progressService.updateTaskProgress(i, digestFiles.length, "Healing files");
+        progressService.updateFileProgress(0, 100, relativePath);
+        progressService.updateStats();
 
         if (config.verbose && i % 100 === 0) {
           logger.log(`(heal-service)> Progress: ${i}/${digestFiles.length} files processed`);
@@ -93,15 +88,15 @@ class HealService {
           );
 
           if (healResult.healed) {
-            result.filesRecovered!++;
-            result.totalBytesProcessed += digestFile.size;
+            progressService.incrementFilesRecovered();
+            progressService.addBytesProcessed(digestFile.size);
             logger.debug(`(heal-service)> Healed: ${relativePath}`);
           } else if (healResult.verified) {
-            result.filesVerified!++;
+            progressService.incrementFilesVerified();
             logger.debug(`(heal-service)> Verified: ${relativePath}`);
           } else {
-            result.filesRecoveryFailed!++;
-            addError(result, `Failed to heal ${relativePath}: ${healResult.reason}`);
+            progressService.incrementFilesRecoveryFailed();
+            progressService.addError(`Failed to heal ${relativePath}: ${healResult.reason}`);
             logger.logNegative(`(heal-service)> Failed: ${relativePath} - ${healResult.reason}`);
 
             if (config.panicOnError) {
@@ -109,11 +104,11 @@ class HealService {
             }
           }
 
-          displayService.updateFileProgress(100, 100, relativePath);
-          result.totalFilesProcessed++;
+          progressService.updateFileProgress(100, 100, relativePath);
+          progressService.incrementTotalFilesProcessed();
         } catch (error) {
           logger.logNegative(`(heal-service)> Error healing file: ${relativePath}`);
-          addError(result, `Error healing ${relativePath}: ${(error as Error).message}`);
+          progressService.addError(`Error healing ${relativePath}: ${(error as Error).message}`);
           errorService.handleError(error);
 
           if (config.panicOnError) {
@@ -123,29 +118,32 @@ class HealService {
       }
 
       // Complete operation
-      completeExecution(result, result.filesRecoveryFailed === 0);
+      const result = progressService.getExecutionResult();
+      const success = result && result.filesRecoveryFailed === 0;
+      progressService.completeExecution(success || false);
 
-      if (!config.dryRun && operationId !== null) {
+      if (!config.dryRun && operationId !== null && result) {
         db.completeOperation(operationId, result.success, result.errorCount);
       }
 
       // Complete progress display
-      displayService.updateTaskProgress(digestFiles.length, digestFiles.length, "Complete");
-      displayService.updateStats(result);
-      displayService.stop();
+      progressService.updateTaskProgress(digestFiles.length, digestFiles.length, "Complete");
+      progressService.updateStats();
+      progressService.stop();
 
       // Report results
-      displayService.logExecutionResult(result, config.verbose);
+      progressService.logExecutionResult(config.verbose);
     } catch (error) {
       logger.logNegative("(heal-service)> Heal operation failed");
-      addError(result, `Heal failed: ${(error as Error).message}`);
-      completeExecution(result, false);
+      progressService.addError(`Heal failed: ${(error as Error).message}`);
+      progressService.completeExecution(false);
       errorService.handleError(error);
 
       // Stop display on error
-      displayService.stop();
+      progressService.stop();
 
-      if (db.isOpen() && !config.dryRun && operationId !== null) {
+      const result = progressService.getExecutionResult();
+      if (db.isOpen() && !config.dryRun && operationId !== null && result) {
         db.completeOperation(operationId, false, result.errorCount);
       }
     } finally {
@@ -154,6 +152,10 @@ class HealService {
       }
     }
 
+    const result = progressService.getExecutionResult();
+    if (!result) {
+      throw new Error("Execution result not available");
+    }
     return result;
   }
 
@@ -182,8 +184,9 @@ class HealService {
           // Check hash
           const actualHash = await cryptoService.hashFile(targetPath, hashAlgorithm, (bytesRead, total) => {
             const percentage = Math.floor((bytesRead / total) * 100);
-            displayService.updateFileProgress(percentage, 100, `[Check] ${relativePath}`);
+            progressService.updateFileProgress(percentage, 100, `[Check] ${relativePath}`);
           });
+          progressService.addBytesProcessed(stats.size);
           if (actualHash === expectedHash) {
             // File is valid, no healing needed
             return { verified: true, healed: false };
@@ -220,8 +223,9 @@ class HealService {
 
         const mirrorHash = await cryptoService.hashFile(mirrorPath, hashAlgorithm, (bytesRead, total) => {
           const percentage = Math.floor((bytesRead / total) * 100);
-          displayService.updateFileProgress(percentage, 100, `[Verify Mirror] ${relativePath}`);
+          progressService.updateFileProgress(percentage, 100, `[Verify Mirror] ${relativePath}`);
         });
+        progressService.addBytesProcessed(mirrorStats.size);
         if (mirrorHash !== expectedHash) {
           logger.logNegative(`(heal-service)> Mirror hash mismatch: ${mirrorPath}`);
           continue;
@@ -260,7 +264,7 @@ class HealService {
           try {
             await fileService.copyLargeFile(mirrorPath, targetPath, (bytesRead, totalBytes) => {
               const percentage = Math.floor((bytesRead / totalBytes) * 100);
-              displayService.updateFileProgress(percentage, 100, `[Heal] ${relativePath}`);
+              progressService.updateFileProgress(percentage, 100, `[Heal] ${relativePath}`);
             });
           } catch (error) {
             const err = error as NodeJS.ErrnoException;
@@ -273,7 +277,7 @@ class HealService {
             try {
               const copiedHash = await cryptoService.hashFile(targetPath, hashAlgorithm, (bytesRead, total) => {
                 const percentage = Math.floor((bytesRead / total) * 100);
-                displayService.updateFileProgress(percentage, 100, `[Validate] ${relativePath}`);
+                progressService.updateFileProgress(percentage, 100, `[Validate] ${relativePath}`);
               });
               if (copiedHash !== expectedHash) {
                 return { verified: false, healed: false, reason: "Copy verification failed" };

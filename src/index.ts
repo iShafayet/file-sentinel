@@ -2,7 +2,7 @@ import { Config } from "./model/config.js";
 import { logger } from "./lib/logger.js";
 import { sanityService } from "./service/sanity-service.js";
 import { coreService } from "./service/core-service.js";
-import { displayService } from "./service/display-service.js";
+import { progressService } from "./service/progress-service.js";
 import { ExecutionResult } from "./model/execution-results.js";
 import { applyTtyAndVerbosityGlobally, getVersion } from "./utility/misc-utils.js";
 import { DatabaseService } from "./service/database-service.js";
@@ -58,7 +58,7 @@ export class FileSentinelProgram {
     logger.log("(program)> Command execution complete");
 
     // After operation completes, wait for keypress to show logs
-    await displayService.stopDisplayAndShowLogs({ waitForKeyPress: true });
+    await progressService.stopDisplayAndShowLogs({ waitForKeyPress: true });
 
     return result;
   }

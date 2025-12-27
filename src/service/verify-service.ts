@@ -1,10 +1,10 @@
 import { logger } from "../lib/logger.js";
 import { VerifyConfig } from "../model/config.js";
-import { ExecutionResult, createExecutionResult, completeExecution, addError } from "../model/execution-results.js";
+import { ExecutionResult } from "../model/execution-results.js";
 import { DatabaseService } from "./database-service.js";
 import { discoveryService } from "./discovery-service.js";
 import { cryptoService } from "./crypto-service.js";
-import { displayService } from "./display-service.js";
+import { progressService } from "./progress-service.js";
 import { errorService } from "./error-service.js";
 import { isInSubdirectory } from "../utility/path-utils.js";
 import { getFileSystemErrorMessage } from "../utility/error-utils.js";
@@ -19,15 +19,9 @@ class VerifyService {
    * Executes the verify command
    */
   async execute(config: VerifyConfig): Promise<ExecutionResult> {
-    const result = createExecutionResult("verify");
-    result.filesVerified = 0;
-    result.filesFailed = 0;
-    result.filesMissing = 0;
-    result.filesExtra = 0;
-
-    // Enable buffering and start display
+    // Enable buffering and start display (creates ExecutionResult)
     logger.enableBuffering();
-    displayService.start(config);
+    progressService.start(config);
 
     logger.log("=".repeat(80));
     logger.log("Starting Verify Operation");
@@ -56,16 +50,15 @@ class VerifyService {
       logger.log(`(verify-service)> Found ${digestFiles.length} files in digest`);
 
       // Discover files on disk with progress
-      displayService.startDiscovery();
+      progressService.startDiscovery();
       const discoveredFiles = await discoveryService.discoverFiles(
         config.inputDir,
         config.subdirectory,
-        result,
         (fileCount, currentDir) => {
-          displayService.updateDiscoveryProgress(fileCount, currentDir);
+          progressService.updateDiscoveryProgress(fileCount, currentDir);
         }
       );
-      displayService.stopDiscovery();
+      progressService.stopDiscovery();
       logger.log(`(verify-service)> Discovered ${discoveredFiles.length} files on disk`);
 
       // Create maps for comparison
@@ -80,9 +73,9 @@ class VerifyService {
         const relativePath = digestFile.relative_path;
 
         // Update progress display
-        displayService.updateTaskProgress(i, digestFiles.length, "Verifying files");
-        displayService.updateFileProgress(0, 100, relativePath);
-        displayService.updateStats(result);
+        progressService.updateTaskProgress(i, digestFiles.length, "Verifying files");
+        progressService.updateFileProgress(0, 100, relativePath);
+        progressService.updateStats();
 
         if (config.verbose && i % 100 === 0) {
           logger.log(`(verify-service)> Progress: ${i}/${digestFiles.length} files verified`);
@@ -91,8 +84,8 @@ class VerifyService {
         try {
           // Check if file exists on disk
           if (!discoveredSet.has(relativePath)) {
-            result.filesMissing!++;
-            addError(result, `Missing file: ${relativePath}`);
+            progressService.incrementFilesMissing();
+            progressService.addError(`Missing file: ${relativePath}`);
             logger.logNegative(`(verify-service)> Missing: ${relativePath}`);
 
             if (config.panicOnError) {
@@ -111,11 +104,11 @@ class VerifyService {
           );
 
           if (verifyResult.success) {
-            result.filesVerified!++;
+            progressService.incrementFilesVerified();
             logger.debug(`(verify-service)> Verified: ${relativePath}`);
           } else {
-            result.filesFailed!++;
-            addError(result, `Verification failed for ${relativePath}: ${verifyResult.reason}`);
+            progressService.incrementFilesFailed();
+            progressService.addError(`Verification failed for ${relativePath}: ${verifyResult.reason}`);
             logger.logNegative(`(verify-service)> Failed: ${relativePath} - ${verifyResult.reason}`);
 
             if (config.panicOnError) {
@@ -123,13 +116,14 @@ class VerifyService {
             }
           }
 
-          result.totalFilesProcessed++;
+          progressService.incrementTotalFilesProcessed();
+          progressService.addBytesProcessed(digestFile.size);
 
           // Update file completion
-          displayService.updateFileProgress(100, 100, relativePath);
+          progressService.updateFileProgress(100, 100, relativePath);
         } catch (error) {
           logger.logNegative(`(verify-service)> Error verifying file: ${relativePath}`);
-          addError(result, `Error verifying ${relativePath}: ${(error as Error).message}`);
+          progressService.addError(`Error verifying ${relativePath}: ${(error as Error).message}`);
           errorService.handleError(error);
 
           if (config.panicOnError) {
@@ -141,45 +135,51 @@ class VerifyService {
       // Check for extra files (on disk but not in digest)
       for (const relativePath of discoveredFiles) {
         if (!digestMap.has(relativePath)) {
-          result.filesExtra!++;
-          addError(result, `Extra file not in digest: ${relativePath}`);
+          progressService.incrementFilesExtra();
+          progressService.addError(`Extra file not in digest: ${relativePath}`);
           logger.logNegative(`(verify-service)> Extra: ${relativePath}`);
         }
       }
 
       // Complete operation
-      const success = result.filesFailed === 0 && result.filesMissing === 0 && result.filesExtra === 0;
-      completeExecution(result, success);
+      const result = progressService.getExecutionResult();
+      const success = result && result.filesFailed === 0 && result.filesMissing === 0 && result.filesExtra === 0;
+      progressService.completeExecution(success || false);
 
-      if (operationId !== null) {
+      if (operationId !== null && result) {
         db.completeOperation(operationId, result.success, result.errorCount);
       }
 
       // Complete progress display
-      displayService.updateTaskProgress(digestFiles.length, digestFiles.length, "Complete");
-      displayService.updateStats(result);
-      displayService.stop();
+      progressService.updateTaskProgress(digestFiles.length, digestFiles.length, "Complete");
+      progressService.updateStats();
+      progressService.stop();
 
       // Report results
-      displayService.logExecutionResult(result, config.verbose);
+      progressService.logExecutionResult(config.verbose);
     } catch (error) {
       logger.logNegative("(verify-service)> Verify operation failed");
-      addError(result, `Verify failed: ${(error as Error).message}`);
-      completeExecution(result, false);
+      progressService.addError(`Verify failed: ${(error as Error).message}`);
+      progressService.completeExecution(false);
       errorService.handleError(error);
 
-      if (db.isOpen() && operationId !== null) {
+      const result = progressService.getExecutionResult();
+      if (db.isOpen() && operationId !== null && result) {
         db.completeOperation(operationId, false, result.errorCount);
       }
 
       // Stop display on error
-      displayService.stop();
+      progressService.stop();
     } finally {
       if (db.isOpen()) {
         db.close();
       }
     }
 
+    const result = progressService.getExecutionResult();
+    if (!result) {
+      throw new Error("Execution result not available");
+    }
     return result;
   }
 
@@ -218,7 +218,7 @@ class VerifyService {
       try {
         actualHash = await cryptoService.hashFile(filePath, hashAlgorithm, (bytesRead, total) => {
           const percentage = Math.floor((bytesRead / total) * 100);
-          displayService.updateFileProgress(percentage, 100, fileName);
+          progressService.updateFileProgress(percentage, 100, fileName);
         });
       } catch (error) {
         const err = error as NodeJS.ErrnoException;

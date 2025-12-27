@@ -30,40 +30,8 @@ export type ExecutionResult = {
   filesRecovered?: number;
   filesRecoveryFailed?: number;
 
-  // Compare specific
-  filesNew?: number;
-  filesChanged?: number;
-  // Note: filesDeleted is shared with digest command
+  // Compare specific (predicts what replicate would do: local -> remote)
+  filesToBeCreated?: number; // Files in local but not in remote (would be created)
+  filesToBeUpdated?: number; // Files in both but with different hash (would be updated)
+  filesToBeDeleted?: number; // Files in remote but not in local (would be deleted)
 };
-
-/**
- * Creates a new execution result with default values
- */
-export function createExecutionResult(command: Command): ExecutionResult {
-  return {
-    command,
-    success: false,
-    startedEpoch: Date.now(),
-    completedEpoch: 0,
-    totalFilesProcessed: 0,
-    totalBytesProcessed: 0,
-    errorCount: 0,
-    errors: [],
-  };
-}
-
-/**
- * Adds an error to the execution result
- */
-export function addError(result: ExecutionResult, error: string): void {
-  result.errors.push(error);
-  result.errorCount++;
-}
-
-/**
- * Marks the execution as completed
- */
-export function completeExecution(result: ExecutionResult, success: boolean): void {
-  result.completedEpoch = Date.now();
-  result.success = success;
-}

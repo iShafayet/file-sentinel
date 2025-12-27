@@ -4,7 +4,7 @@ import path from "path";
 import { promises as fsPromises } from "fs";
 import constants from "../constant/common-constants.js";
 import { errorService } from "./error-service.js";
-import { ExecutionResult } from "../model/execution-results.js";
+import { progressService } from "./progress-service.js";
 import { getRelativePath, isIgnoredPath } from "../utility/path-utils.js";
 import { isPathRisky, getSafePath, formatRiskyPathError } from "../utility/path-sanitization-utility.js";
 import { CompatibilityRiskStrategy } from "../model/config.js";
@@ -25,7 +25,6 @@ class DiscoveryService {
    *
    * @param rootDir - The root directory to scan
    * @param subdirectory - Optional subdirectory to limit the scan
-   * @param executionResult - Optional execution result to track errors
    * @param progressCallback - Optional callback for progress updates (fileCount, currentDir)
    * @param compatibilityRiskStrategy - Optional strategy for handling risky filenames (only used for digest)
    * @returns Array of relative paths from rootDir
@@ -33,7 +32,6 @@ class DiscoveryService {
   public async discoverFiles(
     rootDir: string,
     subdirectory?: string | null,
-    executionResult?: ExecutionResult,
     progressCallback?: (fileCount: number, currentDir: string) => void,
     compatibilityRiskStrategy?: CompatibilityRiskStrategy
   ): Promise<string[]> {
@@ -46,14 +44,7 @@ class DiscoveryService {
       return fileList;
     }
 
-    await this.discoverFilesRecursive(
-      startDir,
-      rootDir,
-      fileList,
-      executionResult,
-      progressCallback,
-      compatibilityRiskStrategy
-    );
+    await this.discoverFilesRecursive(startDir, rootDir, fileList, progressCallback, compatibilityRiskStrategy);
 
     logger.debug(
       `(discovery-service)> Discovered ${fileList.length} files in ${rootDir}${subdirectory ? "/" + subdirectory : ""}`
@@ -69,7 +60,6 @@ class DiscoveryService {
     currentDir: string,
     rootDir: string,
     fileList: string[],
-    executionResult?: ExecutionResult,
     progressCallback?: (fileCount: number, currentDir: string) => void,
     compatibilityRiskStrategy?: CompatibilityRiskStrategy
   ): Promise<void> {
@@ -80,10 +70,7 @@ class DiscoveryService {
     } catch (error) {
       logger.logNegative(`(discovery-service)> Error reading directory: ${currentDir}`);
       errorService.handleError(error);
-      if (executionResult) {
-        executionResult.errorCount++;
-        executionResult.errors.push(`Failed to read directory: ${currentDir}`);
-      }
+      progressService.addError(`Failed to read directory: ${currentDir}`);
       return;
     }
 
@@ -103,8 +90,7 @@ class DiscoveryService {
           tentativeChildPath,
           tentativeChildRelativePath,
           rootDir,
-          compatibilityRiskStrategy,
-          executionResult
+          compatibilityRiskStrategy
         );
         if (result === null) {
           // File/directory was skipped
@@ -147,14 +133,7 @@ class DiscoveryService {
             progressCallback(fileList.length, childPath);
           }
           // Recurse into directory (use actual path after potential rename)
-          await this.discoverFilesRecursive(
-            childPath,
-            rootDir,
-            fileList,
-            executionResult,
-            progressCallback,
-            compatibilityRiskStrategy
-          );
+          await this.discoverFilesRecursive(childPath, rootDir, fileList, progressCallback, compatibilityRiskStrategy);
         } else if (childStat.isFile()) {
           // Add file to list
           fileList.push(childRelativePath);
@@ -171,10 +150,7 @@ class DiscoveryService {
           await errorService.terminateOnError(error);
           process.exit(2); // Just to make compiler happy
         }
-        if (executionResult) {
-          executionResult.errorCount++;
-          executionResult.errors.push(`Failed to process: ${child}`);
-        }
+        progressService.addError(`Failed to process: ${child}`);
       }
     }
   }
@@ -210,8 +186,7 @@ class DiscoveryService {
     childPath: string,
     childRelativePath: string,
     rootDir: string,
-    strategy: CompatibilityRiskStrategy,
-    executionResult?: ExecutionResult
+    strategy: CompatibilityRiskStrategy
   ): Promise<{ path: string; relativePath: string } | null> {
     const safePath = getSafePath(childRelativePath);
     const safeFullPath = path.join(rootDir, safePath);
@@ -229,10 +204,7 @@ class DiscoveryService {
       case "skip":
         // Log warning and skip the file/directory
         logger.logNegative(`(discovery-service)> Skipping risky name: ${childRelativePath}`);
-        if (executionResult) {
-          executionResult.errorCount++;
-          executionResult.errors.push(`Skipped risky name: ${childRelativePath}`);
-        }
+        progressService.addError(`Skipped risky name: ${childRelativePath}`);
         return null; // Don't process
 
       case "accept-risk":
@@ -271,10 +243,7 @@ class DiscoveryService {
             logger.logNegative(
               `(discovery-service)> Skipping risky name after mitigation failure: ${childRelativePath}`
             );
-            if (executionResult) {
-              executionResult.errorCount++;
-              executionResult.errors.push(`Skipped risky name after mitigation failure: ${childRelativePath}`);
-            }
+            progressService.addError(`Skipped risky name after mitigation failure: ${childRelativePath}`);
             return null; // Don't process
           } else {
             // strategy === "mitigate-or-accept-risk"
