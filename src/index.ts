@@ -5,6 +5,7 @@ import { coreService } from "./service/core-service.js";
 import { displayService } from "./service/display-service.js";
 import { ExecutionResult } from "./model/execution-results.js";
 import { applyTtyAndVerbosityGlobally, getVersion } from "./utility/misc-utils.js";
+import { DatabaseService } from "./service/database-service.js";
 
 /**
  * Main program entry point
@@ -80,9 +81,11 @@ process.on("uncaughtException", function (err) {
   console.error("Stack:", err.stack);
   console.error("=".repeat(80));
   logger.flushBufferedLogs();
+  DatabaseService.closeAllConnections();
   process.exit(1);
 });
 
+// Handle unhandled promise rejections
 process.on("unhandledRejection", function (reason, promise) {
   console.error("=".repeat(80));
   console.error("UNHANDLED PROMISE REJECTION");
@@ -91,5 +94,34 @@ process.on("unhandledRejection", function (reason, promise) {
   console.error("Promise:", promise);
   console.error("=".repeat(80));
   logger.flushBufferedLogs();
+  DatabaseService.closeAllConnections();
   process.exit(1);
+});
+
+// Handle SIGINT (Ctrl+C)
+process.on("SIGINT", () => {
+  logger.log("(program)> SIGINT received");
+  const bufferedCount = logger.getBufferedLogCount();
+  if (bufferedCount > 0) {
+    console.log("\n");
+    console.log("Interrupted by user. Flushing buffered logs...");
+    logger.flushBufferedLogs();
+  }
+
+  DatabaseService.closeAllConnections();
+  process.exit(130); // Standard exit code for SIGINT
+});
+
+// Handle SIGTERM
+process.on("SIGTERM", () => {
+  logger.log("(program)> SIGTERM received");
+  const bufferedCount = logger.getBufferedLogCount();
+  if (bufferedCount > 0) {
+    console.log("\n");
+    console.log("Interrupted by user. Flushing buffered logs...");
+    logger.flushBufferedLogs();
+  }
+
+  DatabaseService.closeAllConnections();
+  process.exit(143); // Standard exit code for SIGTERM
 });
