@@ -79,6 +79,9 @@ class ProgressService {
     }
 
     displayService.start(config);
+
+    // Initialize stats display with the execution result
+    this.updateStats();
   }
 
   /**

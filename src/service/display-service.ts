@@ -386,6 +386,9 @@ class DisplayService {
     if (label) {
       this.addLogToLogPane("Progress", label);
     }
+
+    // Trigger immediate stats update to show progress change
+    this.updateStatsDisplay();
   }
 
   /**
@@ -405,6 +408,8 @@ class DisplayService {
       if (this.executionResult) {
         this.dataRateTracker.bytesProcessed = this.executionResult.totalBytesProcessed;
       }
+      // Trigger immediate stats update to show current file change
+      this.updateStatsDisplay();
     }
   }
 
