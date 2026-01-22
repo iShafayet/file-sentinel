@@ -10,6 +10,7 @@ import { errorService } from "./error-service.js";
 import { RecycleUtility } from "../utility/recycle-utility.js";
 import { isInSubdirectory, joinPath } from "../utility/path-utils.js";
 import { getFileSystemErrorMessage } from "../utility/error-utils.js";
+import { isFileWritable } from "../utility/file-utils.js";
 import path from "path";
 import fs from "fs";
 import { promises as fsPromises } from "fs";
@@ -51,6 +52,15 @@ class ReplicateService {
         throw new Error(`Source digest file does not exist: ${config.sourceDigestFile}`);
       }
 
+      // Check write permissions for source (needed for operation log)
+      if (!isFileWritable(config.sourceDigestFile)) {
+        throw new Error(
+          `Source digest file is read-only or cannot be written: ${config.sourceDigestFile}. ` +
+          `Replicate operation requires write access to log operations. ` +
+          `Please check file permissions (use chmod to make it writable if needed).`
+        );
+      }
+
       sourceDb.open(config.sourceDigestFile);
       sourceOpId = sourceDb.startOperation("replicate-source");
       logger.log("(replicate-service)> Source database opened");
@@ -63,6 +73,15 @@ class ReplicateService {
 
       // Open or create destination database
       if (!config.dryRun) {
+        // Check write permissions for destination (needed for writing files and operation log)
+        if (!isFileWritable(config.destDigestFile)) {
+          throw new Error(
+            `Destination digest file is read-only or cannot be written: ${config.destDigestFile}. ` +
+            `Replicate operation requires write access to update the destination digest. ` +
+            `Please check file permissions (use chmod to make it writable if needed).`
+          );
+        }
+
         destDb.open(config.destDigestFile);
         destOpId = destDb.startOperation("replicate-destination");
         logger.log("(replicate-service)> Destination database opened");
@@ -236,7 +255,26 @@ class ReplicateService {
       progressService.logExecutionResult(config.verbose);
     } catch (error) {
       logger.logNegative("(replicate-service)> Replicate operation failed");
-      progressService.addError(`Replicate failed: ${(error as Error).message}`);
+      
+      // Check for SQLITE_READONLY errors and provide clearer message
+      let errorMessage = (error as Error).message;
+      if ((error as any).code === "SQLITE_READONLY" || errorMessage.includes("readonly database")) {
+        // Determine which database failed based on error context
+        const sourcePath = config.sourceDigestFile;
+        const destPath = config.destDigestFile;
+        if (errorMessage.includes("source") || errorMessage.includes(sourcePath)) {
+          errorMessage = `Source digest file is read-only: ${sourcePath}. ` +
+            `Cannot write to the database. Please check file permissions (use chmod to make it writable if needed).`;
+        } else if (errorMessage.includes("destination") || errorMessage.includes(destPath)) {
+          errorMessage = `Destination digest file is read-only: ${destPath}. ` +
+            `Cannot write to the database. Please check file permissions (use chmod to make it writable if needed).`;
+        } else {
+          errorMessage = `Digest file is read-only. ` +
+            `Cannot write to the database. Please check file permissions (use chmod to make it writable if needed).`;
+        }
+      }
+      
+      progressService.addError(`Replicate failed: ${errorMessage}`);
       progressService.completeExecution(false);
       errorService.handleError(error);
 
