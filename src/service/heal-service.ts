@@ -8,6 +8,7 @@ import { progressService } from "./progress-service.js";
 import { errorService } from "./error-service.js";
 import { joinPath } from "../utility/path-utils.js";
 import { getFileSystemErrorMessage } from "../utility/error-utils.js";
+import { isFileWritable } from "../utility/file-utils.js";
 import path from "path";
 import fs from "fs";
 import { promises as fsPromises } from "fs";
@@ -45,6 +46,15 @@ class HealService {
       // Note: In dry-run mode, we still need to open the database to read file information
       // for verification. We just don't log operations or write any changes.
       if (!config.dryRun) {
+        // Check write permissions (needed for operation log)
+        if (!isFileWritable(config.digestFile)) {
+          throw new Error(
+            `Digest file is read-only or cannot be written: ${config.digestFile}. ` +
+            `Heal operation requires write access to log operations. ` +
+            `Please check file permissions (use chmod to make it writable if needed).`
+          );
+        }
+
         db.open(config.digestFile);
         operationId = db.startOperation("heal");
         logger.log("(heal-service)> Database opened successfully");
@@ -135,7 +145,15 @@ class HealService {
       progressService.logExecutionResult(config.verbose);
     } catch (error) {
       logger.logNegative("(heal-service)> Heal operation failed");
-      progressService.addError(`Heal failed: ${(error as Error).message}`);
+      
+      // Check for SQLITE_READONLY errors and provide clearer message
+      let errorMessage = (error as Error).message;
+      if ((error as any).code === "SQLITE_READONLY" || errorMessage.includes("readonly database")) {
+        errorMessage = `Digest file is read-only: ${config.digestFile}. ` +
+          `Cannot write to the database. Please check file permissions (use chmod to make it writable if needed).`;
+      }
+      
+      progressService.addError(`Heal failed: ${errorMessage}`);
       progressService.completeExecution(false);
       errorService.handleError(error);
 

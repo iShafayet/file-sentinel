@@ -8,6 +8,7 @@ import { progressService } from "./progress-service.js";
 import { errorService } from "./error-service.js";
 import { isInSubdirectory } from "../utility/path-utils.js";
 import { getFileSystemErrorMessage } from "../utility/error-utils.js";
+import { isFileWritable } from "../utility/file-utils.js";
 import path from "path";
 import fs from "fs";
 
@@ -38,6 +39,15 @@ class VerifyService {
       // Open database (must exist)
       if (!fs.existsSync(config.digestFile)) {
         throw new Error(`Digest file does not exist: ${config.digestFile}`);
+      }
+
+      // Check write permissions (needed for operation log)
+      if (!isFileWritable(config.digestFile)) {
+        throw new Error(
+          `Digest file is read-only or cannot be written: ${config.digestFile}. ` +
+          `Verify operation requires write access to log operations. ` +
+          `Please check file permissions (use chmod to make it writable if needed).`
+        );
       }
 
       db.open(config.digestFile);
@@ -159,7 +169,15 @@ class VerifyService {
       progressService.logExecutionResult(config.verbose);
     } catch (error) {
       logger.logNegative("(verify-service)> Verify operation failed");
-      progressService.addError(`Verify failed: ${(error as Error).message}`);
+      
+      // Check for SQLITE_READONLY errors and provide clearer message
+      let errorMessage = (error as Error).message;
+      if ((error as any).code === "SQLITE_READONLY" || errorMessage.includes("readonly database")) {
+        errorMessage = `Digest file is read-only: ${config.digestFile}. ` +
+          `Cannot write to the database. Please check file permissions (use chmod to make it writable if needed).`;
+      }
+      
+      progressService.addError(`Verify failed: ${errorMessage}`);
       progressService.completeExecution(false);
       errorService.handleError(error);
 

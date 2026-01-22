@@ -6,6 +6,7 @@ import { discoveryService } from "./discovery-service.js";
 import { cryptoService } from "./crypto-service.js";
 import { progressService } from "./progress-service.js";
 import { errorService } from "./error-service.js";
+import { isFileWritable } from "../utility/file-utils.js";
 import path from "path";
 import fs from "fs";
 
@@ -38,6 +39,14 @@ class DigestService {
       if (config.dryRun) {
         logger.log("(digest-service)> Dry run mode - database will not be modified");
       } else {
+        // Check write permissions before attempting to open
+        if (!isFileWritable(config.digestFile)) {
+          throw new Error(
+            `Digest file is read-only or cannot be written: ${config.digestFile}. ` +
+            `Please check file permissions (use chmod to make it writable if needed).`
+          );
+        }
+
         db.open(config.digestFile);
         operationId = db.startOperation("digest");
         logger.log("(digest-service)> Database opened successfully");
@@ -193,7 +202,15 @@ class DigestService {
       progressService.logExecutionResult(config.verbose);
     } catch (error) {
       logger.logNegative("(digest-service)> Digest operation failed");
-      progressService.addError(`Digest failed: ${(error as Error).message}`);
+      
+      // Check for SQLITE_READONLY errors and provide clearer message
+      let errorMessage = (error as Error).message;
+      if ((error as any).code === "SQLITE_READONLY" || errorMessage.includes("readonly database")) {
+        errorMessage = `Digest file is read-only: ${config.digestFile}. ` +
+          `Cannot write to the database. Please check file permissions (use chmod to make it writable if needed).`;
+      }
+      
+      progressService.addError(`Digest failed: ${errorMessage}`);
       progressService.completeExecution(false);
       errorService.handleError(error);
 
