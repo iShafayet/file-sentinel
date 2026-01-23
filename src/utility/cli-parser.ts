@@ -41,6 +41,7 @@ export function parseArgs(argv?: string[]): Config {
     .option("--dry-run", "Simulate without writing", false)
     .option("--no-tty", "Disable TTY mode (no colors, no interactive prompts)", true)
     .option("-t, --io-timeout <seconds>", "IO timeout in seconds", "30")
+    .option("--recency-threshold <seconds>", "Skip files processed within this threshold (seconds)", "0")
     .action((options) => {
       const { dir, digestFile } = parseInputOption(options.input);
       const compatibilityRiskStrategy = (options.compatibilityRiskStrategy || "abort") as CompatibilityRiskStrategy;
@@ -71,6 +72,7 @@ export function parseArgs(argv?: string[]): Config {
         noTty: !options.tty, // Commander.js inverts --no-tty to options.tty
         ioTimeout: parseInt(options.ioTimeout, 10),
         compatibilityRiskStrategy: compatibilityRiskStrategy,
+        recencyThreshold: parseInt(options.recencyThreshold || "0", 10),
       };
       parsedConfig = config;
     });
@@ -90,6 +92,7 @@ export function parseArgs(argv?: string[]): Config {
     .option("--dry-run", "Simulate without writing", false)
     .option("--no-tty", "Disable TTY mode (no colors, no interactive prompts)", true)
     .option("-t, --io-timeout <seconds>", "IO timeout in seconds", "30")
+    .option("--recency-threshold <seconds>", "Skip files processed within this threshold (seconds)", "0")
     .action((options) => {
       const { dir, digestFile } = parseInputOption(options.input);
       const config: VerifyConfig = {
@@ -103,6 +106,7 @@ export function parseArgs(argv?: string[]): Config {
         dryRun: options.dryRun,
         noTty: !options.tty, // Commander.js inverts --no-tty to options.tty
         ioTimeout: parseInt(options.ioTimeout, 10),
+        recencyThreshold: parseInt(options.recencyThreshold || "0", 10),
       };
       parsedConfig = config;
     });
@@ -135,6 +139,7 @@ export function parseArgs(argv?: string[]): Config {
     .option("--dry-run", "Simulate without writing", false)
     .option("--no-tty", "Disable TTY mode (no colors, no interactive prompts)", true)
     .option("-t, --io-timeout <seconds>", "IO timeout in seconds", "30")
+    .option("--recency-threshold <seconds>", "Skip files processed within this threshold (seconds)", "0")
     .action((options: any) => {
       console.log(options);
       const source = parseInputOption(options.input);
@@ -153,6 +158,7 @@ export function parseArgs(argv?: string[]): Config {
         verbose: options.verbose,
         panicOnError: options.panicOnError,
         dryRun: options.dryRun,
+        recencyThreshold: parseInt(options.recencyThreshold || "0", 10),
         noTty: !options.tty, // Commander.js inverts --no-tty to options.tty
         ioTimeout: parseInt(options.ioTimeout, 10),
       };
@@ -182,6 +188,7 @@ export function parseArgs(argv?: string[]): Config {
     .option("--dry-run", "Simulate without writing", false)
     .option("--no-tty", "Disable TTY mode (no colors, no interactive prompts)", true)
     .option("-t, --io-timeout <seconds>", "IO timeout in seconds", "30")
+    .option("--recency-threshold <seconds>", "Skip files processed within this threshold (seconds)", "0")
     .action((options: any) => {
       const { dir, digestFile } = parseInputOption(options.input);
 
@@ -203,6 +210,7 @@ export function parseArgs(argv?: string[]): Config {
         panicOnError: options.panicOnError,
         dryRun: options.dryRun,
         noTty: !options.tty, // Commander.js inverts --no-tty to options.tty
+        recencyThreshold: parseInt(options.recencyThreshold || "0", 10),
         ioTimeout: parseInt(options.ioTimeout, 10),
       };
       parsedConfig = config;
@@ -220,6 +228,7 @@ export function parseArgs(argv?: string[]): Config {
     .option("--dry-run", "Simulate without writing", false)
     .option("--no-tty", "Disable TTY mode (no colors, no interactive prompts)", true)
     .option("-t, --io-timeout <seconds>", "IO timeout in seconds", "30")
+    .option("--recency-threshold <seconds>", "Skip files processed within this threshold (seconds)", "0")
     .action((options) => {
       const config: CompareConfig = {
         command: "compare",
@@ -232,6 +241,7 @@ export function parseArgs(argv?: string[]): Config {
         noTty: !options.tty, // Commander.js inverts --no-tty to options.tty
         ioTimeout: parseInt(options.ioTimeout, 10),
         hashAlgorithm: "sha256", // Not used in compare, but required by BaseConfig
+        recencyThreshold: parseInt(options.recencyThreshold || "0", 10),
       };
       parsedConfig = config;
     });

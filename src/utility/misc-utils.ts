@@ -76,4 +76,45 @@ function applyTtyAndVerbosityGlobally(config: Config): void {
   }
 }
 
+/**
+ * Checks if a file should be skipped based on recency threshold
+ * @param lastAttemptedAt - Timestamp of last attempt (0 if never attempted)
+ * @param recencyThreshold - Threshold in seconds (0 means no threshold)
+ * @param relativePath - File path for logging
+ * @param logger - Logger instance for logging skip messages
+ * @returns true if file should be skipped, false otherwise
+ */
+export function shouldSkipFileByRecency(
+  lastAttemptedAt: number,
+  recencyThreshold: number,
+  relativePath: string,
+  logger: { log: (message: string) => void }
+): boolean {
+  if (recencyThreshold <= 0) {
+    return false; // No threshold, process all files
+  }
+
+  if (lastAttemptedAt === 0) {
+    return false; // Never attempted, process it
+  }
+
+  const now = Date.now();
+  const timeSinceLastAttempt = Math.floor((now - lastAttemptedAt) / 1000); // Convert to seconds
+
+  if (timeSinceLastAttempt < recencyThreshold) {
+    const minutesAgo = Math.floor(timeSinceLastAttempt / 60);
+    const secondsAgo = timeSinceLastAttempt % 60;
+    const timeStr =
+      minutesAgo > 0
+        ? `${minutesAgo} minute${minutesAgo > 1 ? "s" : ""} ${secondsAgo} second${secondsAgo !== 1 ? "s" : ""}`
+        : `${secondsAgo} second${secondsAgo !== 1 ? "s" : ""}`;
+    logger.log(
+      `Skipping ${relativePath} - processed ${timeStr} ago (within ${recencyThreshold} second threshold)`
+    );
+    return true;
+  }
+
+  return false;
+}
+
 export { extract, strip, getVersion, getBuildDate, applyTtyAndVerbosityGlobally };

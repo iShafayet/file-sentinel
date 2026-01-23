@@ -33,6 +33,7 @@ describe("Large File Tests - v2", (): void => {
       noTty: true,
       ioTimeout: 300,
       compatibilityRiskStrategy: "abort",
+      recencyThreshold: 0,
     };
 
     const fileSentinel = new FileSentinelProgram();
@@ -59,6 +60,7 @@ describe("Large File Tests - v2", (): void => {
       dryRun: false,
       noTty: true,
       ioTimeout: 300,
+      recencyThreshold: 0,
     };
 
     const fileSentinel = new FileSentinelProgram();
@@ -92,6 +94,7 @@ describe("Large File Tests - v2", (): void => {
       dryRun: false,
       noTty: true,
       ioTimeout: 300,
+      recencyThreshold: 0,
     };
 
     const fileSentinel = new FileSentinelProgram();

@@ -9,6 +9,7 @@ import { errorService } from "./error-service.js";
 import { joinPath } from "../utility/path-utils.js";
 import { getFileSystemErrorMessage } from "../utility/error-utils.js";
 import { isFileWritable } from "../utility/file-utils.js";
+import { shouldSkipFileByRecency } from "../utility/misc-utils.js";
 import path from "path";
 import fs from "fs";
 import { promises as fsPromises } from "fs";
@@ -75,6 +76,11 @@ class HealService {
       for (let i = 0; i < digestFiles.length; i++) {
         const digestFile = digestFiles[i];
         const relativePath = digestFile.relative_path;
+
+        // Check recency threshold
+        if (shouldSkipFileByRecency(digestFile.last_attempted_at, config.recencyThreshold, relativePath, logger)) {
+          continue;
+        }
 
         // Update progress display
         progressService.updateTaskProgress(i, digestFiles.length, "Healing files");

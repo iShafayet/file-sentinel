@@ -11,6 +11,7 @@ import { RecycleUtility } from "../utility/recycle-utility.js";
 import { isInSubdirectory, joinPath } from "../utility/path-utils.js";
 import { getFileSystemErrorMessage } from "../utility/error-utils.js";
 import { isFileWritable } from "../utility/file-utils.js";
+import { shouldSkipFileByRecency } from "../utility/misc-utils.js";
 import path from "path";
 import fs from "fs";
 import { promises as fsPromises } from "fs";
@@ -119,6 +120,14 @@ class ReplicateService {
         for (let i = 0; i < sourceFiles.length; i++) {
           const sourceFile = sourceFiles[i];
           const relativePath = sourceFile.relative_path;
+
+          // Check recency threshold (check destination file if it exists)
+          if (!config.dryRun && destDb.isOpen()) {
+            const destFile = destDb.getFile(relativePath);
+            if (destFile && shouldSkipFileByRecency(destFile.last_attempted_at, config.recencyThreshold, relativePath, logger)) {
+              continue;
+            }
+          }
 
           // Update progress display
           progressService.updateTaskProgress(i, sourceFiles.length, "Replicating files");
