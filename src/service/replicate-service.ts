@@ -152,14 +152,21 @@ class ReplicateService {
                   created_at: sourceFile.created_at,
                   modified_at: sourceFile.modified_at,
                   hash_sha256: sourceFile.hash_sha256,
+                  last_attempted_at: Date.now(),
+                  last_attempt_result: null,
                 });
+                destDb.updateFileAttempt(relativePath, "success");
               }
 
               logger.debug(`(replicate-service)> Copied: ${relativePath}`);
             } else {
               progressService.incrementFilesRecoveryFailed();
+              const errorMsg = `Failed: ${replicateResult.reason}`;
               progressService.addError(`Failed to replicate ${relativePath}: ${replicateResult.reason}`);
               logger.logNegative(`(replicate-service)> Failed: ${relativePath} - ${replicateResult.reason}`);
+              if (!config.dryRun && destDb.isOpen()) {
+                destDb.updateFileAttempt(relativePath, errorMsg);
+              }
 
               if (config.panicOnError) {
                 throw new Error(`Replication failed: ${relativePath}`);

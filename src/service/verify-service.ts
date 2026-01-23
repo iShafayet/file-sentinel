@@ -95,8 +95,12 @@ class VerifyService {
           // Check if file exists on disk
           if (!discoveredSet.has(relativePath)) {
             progressService.incrementFilesMissing();
+            const errorMsg = "Missing file";
             progressService.addError(`Missing file: ${relativePath}`);
             logger.logNegative(`(verify-service)> Missing: ${relativePath}`);
+            if (db.isOpen() && !config.dryRun) {
+              db.updateFileAttempt(relativePath, errorMsg);
+            }
 
             if (config.panicOnError) {
               throw new Error(`File missing: ${relativePath}`);
@@ -116,10 +120,17 @@ class VerifyService {
           if (verifyResult.success) {
             progressService.incrementFilesVerified();
             logger.debug(`(verify-service)> Verified: ${relativePath}`);
+            if (db.isOpen() && !config.dryRun) {
+              db.updateFileAttempt(relativePath, "success");
+            }
           } else {
             progressService.incrementFilesFailed();
+            const errorMsg = `Verification failed: ${verifyResult.reason}`;
             progressService.addError(`Verification failed for ${relativePath}: ${verifyResult.reason}`);
             logger.logNegative(`(verify-service)> Failed: ${relativePath} - ${verifyResult.reason}`);
+            if (db.isOpen() && !config.dryRun) {
+              db.updateFileAttempt(relativePath, errorMsg);
+            }
 
             if (config.panicOnError) {
               throw new Error(`Verification failed: ${relativePath}`);
@@ -133,7 +144,11 @@ class VerifyService {
           progressService.updateFileProgress(100, 100, relativePath);
         } catch (error) {
           logger.logNegative(`(verify-service)> Error verifying file: ${relativePath}`);
+          const errorMsg = `Error: ${(error as Error).message}`;
           progressService.addError(`Error verifying ${relativePath}: ${(error as Error).message}`);
+          if (db.isOpen() && !config.dryRun) {
+            db.updateFileAttempt(relativePath, errorMsg);
+          }
           errorService.handleError(error);
 
           if (config.panicOnError) {
