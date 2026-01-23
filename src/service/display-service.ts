@@ -3,6 +3,7 @@ import { Config } from "../model/config.js";
 import { isTTY, isStdinTTY } from "../utility/terminal-utils.js";
 import { logger } from "../lib/logger.js";
 import { getVersion } from "../utility/misc-utils.js";
+import { truncatePathIfNotVerbose } from "../utility/path-utils.js";
 import * as path from "path";
 // @ts-ignore - neo-blessed doesn't have types
 import blessed from "neo-blessed";
@@ -266,7 +267,11 @@ class DisplayService {
       if (this.currentFileName) {
         rightStats.push("");
         rightStats.push(`{bold}Current File{/bold}`);
-        const truncated = this.truncateFileName(this.currentFileName, MAX_FILE_NAME_LENGTH);
+        const truncated = truncatePathIfNotVerbose(
+          this.currentFileName,
+          MAX_FILE_NAME_LENGTH,
+          this.config?.verbose ?? false
+        );
         rightStats.push(`  {dim}${truncated}{/dim}`);
       }
 
@@ -360,7 +365,11 @@ class DisplayService {
     if (this.currentFileName) {
       rightStats.push("");
       rightStats.push(`{bold}Current File{/bold}`);
-      const truncated = this.truncateFileName(this.currentFileName, MAX_FILE_NAME_LENGTH);
+      const truncated = truncatePathIfNotVerbose(
+        this.currentFileName,
+        MAX_FILE_NAME_LENGTH,
+        this.config?.verbose ?? false
+      );
       rightStats.push(`  {dim}${truncated}{/dim}`);
     }
 
@@ -678,15 +687,6 @@ class DisplayService {
     return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + " " + sizes[i];
   }
 
-  /**
-   * Truncates file name to fit display
-   */
-  private truncateFileName(fileName: string, maxLength: number): string {
-    if (fileName.length <= maxLength) return fileName;
-    const ellipsis = "...";
-    const partLength = Math.floor((maxLength - ellipsis.length) / 2);
-    return fileName.substring(0, partLength) + ellipsis + fileName.substring(fileName.length - partLength);
-  }
 }
 
 export const displayService = new DisplayService();
