@@ -11,6 +11,7 @@ type BaseConfig = {
   ioTimeout: number;
   noTty: boolean;
   hashAlgorithm: "sha256";
+  recencyThreshold: number;
 };
 
 // Compatibility risk handling strategies
@@ -80,6 +81,7 @@ const baseConfigSchema = {
   dryRun: Joi.boolean().required(),
   ioTimeout: Joi.number().min(1).required(),
   hashAlgorithm: Joi.string().valid("sha256").required(),
+  recencyThreshold: Joi.number().min(0).required(),
 };
 
 export const DigestConfigSchema = Joi.object({

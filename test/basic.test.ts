@@ -31,6 +31,7 @@ describe("Basic Digest Tests - v2", (): void => {
       noTty: true,
       ioTimeout: 30,
       compatibilityRiskStrategy: "abort",
+      recencyThreshold: 0,
     };
 
     const fileSentinel = new FileSentinelProgram();
@@ -66,6 +67,7 @@ describe("Basic Digest Tests - v2", (): void => {
       noTty: true,
       ioTimeout: 30,
       compatibilityRiskStrategy: "abort",
+      recencyThreshold: 0,
     };
 
     const fileSentinel = new FileSentinelProgram();
@@ -99,6 +101,7 @@ describe("Basic Digest Tests - v2", (): void => {
       noTty: true,
       ioTimeout: 30,
       compatibilityRiskStrategy: "abort",
+      recencyThreshold: 0,
     };
 
     const fileSentinel = new FileSentinelProgram();
@@ -127,6 +130,7 @@ describe("Basic Verify Tests - v2", (): void => {
       dryRun: false,
       noTty: true,
       ioTimeout: 30,
+      recencyThreshold: 0,
     };
 
     const fileSentinel = new FileSentinelProgram();
@@ -159,6 +163,7 @@ describe("Basic Verify Tests - v2", (): void => {
       dryRun: false,
       noTty: true,
       ioTimeout: 30,
+      recencyThreshold: 0,
     };
 
     const fileSentinel = new FileSentinelProgram();
@@ -191,6 +196,7 @@ describe("Basic Verify Tests - v2", (): void => {
       dryRun: false,
       noTty: true,
       ioTimeout: 30,
+      recencyThreshold: 0,
     };
 
     const fileSentinel = new FileSentinelProgram();
@@ -223,6 +229,7 @@ describe("Basic Replicate Tests - v2", (): void => {
       noTty: true,
       ioTimeout: 30,
       compatibilityRiskStrategy: "abort",
+      recencyThreshold: 0,
     };
 
     const fileSentinel = new FileSentinelProgram();
@@ -251,6 +258,7 @@ describe("Basic Replicate Tests - v2", (): void => {
       hashAlgorithm: "sha256",
       verbose: true,
       panicOnError: true,
+      recencyThreshold: 0,
       dryRun: false,
       noTty: true,
       ioTimeout: 30,
@@ -291,6 +299,7 @@ describe("Basic Heal Tests - v2", (): void => {
       noTty: true,
       ioTimeout: 30,
       compatibilityRiskStrategy: "abort",
+      recencyThreshold: 0,
     };
 
     const fileSentinel = new FileSentinelProgram();
@@ -325,6 +334,7 @@ describe("Basic Heal Tests - v2", (): void => {
       dryRun: false,
       noTty: true,
       ioTimeout: 30,
+      recencyThreshold: 0,
     };
 
     const fileSentinel = new FileSentinelProgram();

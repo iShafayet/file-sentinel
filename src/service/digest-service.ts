@@ -7,6 +7,7 @@ import { cryptoService } from "./crypto-service.js";
 import { progressService } from "./progress-service.js";
 import { errorService } from "./error-service.js";
 import { isFileWritable } from "../utility/file-utils.js";
+import { shouldSkipFileByRecency } from "../utility/misc-utils.js";
 import path from "path";
 import fs from "fs";
 
@@ -67,7 +68,7 @@ class DigestService {
       logger.log(`(digest-service)> Discovered ${discoveredFiles.length} files`);
 
       // Get existing files from database (filtered by subdirectory if specified)
-      const existingFileMap = new Map<string, { hash: string; size: number; mtime: number }>();
+      const existingFileMap = new Map<string, { hash: string; size: number; mtime: number; last_attempted_at: number }>();
 
       if (!config.dryRun && db.isOpen()) {
         const existingFiles = config.subdirectory ? db.getFilesInSubdirectory(config.subdirectory) : db.getAllFiles();
@@ -76,6 +77,7 @@ class DigestService {
             hash: file.hash_sha256,
             size: file.size,
             mtime: file.modified_at,
+            last_attempted_at: file.last_attempted_at,
           });
         }
         logger.log(
@@ -95,6 +97,12 @@ class DigestService {
       try {
         for (let i = 0; i < discoveredFiles.length; i++) {
           const relativePath = discoveredFiles[i];
+
+          // Check recency threshold
+          const existingFile = existingFileMap.get(relativePath);
+          if (existingFile && shouldSkipFileByRecency(existingFile.last_attempted_at, config.recencyThreshold, relativePath, logger)) {
+            continue;
+          }
 
           // Update progress display
           progressService.updateTaskProgress(i, discoveredFiles.length, "Processing files");
@@ -242,7 +250,7 @@ class DigestService {
     rootDir: string,
     hashAlgorithm: "sha256",
     db: DatabaseService,
-    existingFileMap: Map<string, { hash: string; size: number; mtime: number }>,
+    existingFileMap: Map<string, { hash: string; size: number; mtime: number; last_attempted_at: number }>,
     dryRun: boolean
   ): Promise<"added" | "updated" | "unchanged"> {
     const fullPath = path.join(rootDir, relativePath);
