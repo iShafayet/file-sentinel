@@ -125,3 +125,19 @@ export function joinPath(basePath: string, relativePath: string): string {
   return path.join(basePath, relativePath);
 }
 
+/**
+ * Truncates a path to fit display if not in verbose mode
+ * @param pathValue - The path to truncate
+ * @param maxLength - Maximum length for the truncated path
+ * @param verbose - Whether verbose mode is enabled (if true, returns full path)
+ * @returns Truncated path with ellipsis in the middle, or full path if verbose
+ */
+export function truncatePathIfNotVerbose(pathValue: string, maxLength: number, verbose: boolean): string {
+  if (verbose || pathValue.length <= maxLength) {
+    return pathValue;
+  }
+  const ellipsis = "...";
+  const partLength = Math.floor((maxLength - ellipsis.length) / 2);
+  return pathValue.substring(0, partLength) + ellipsis + pathValue.substring(pathValue.length - partLength);
+}
+

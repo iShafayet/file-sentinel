@@ -3,6 +3,7 @@ import { ExecutionResult } from "../model/execution-results.js";
 import { displayService } from "./display-service.js";
 import { logger } from "../lib/logger.js";
 import { isTTY } from "../utility/terminal-utils.js";
+import { truncatePathIfNotVerbose } from "../utility/path-utils.js";
 
 /**
  * Progress service - High-level interface for progress tracking
@@ -14,12 +15,14 @@ class ProgressService {
   private executionResult: ExecutionResult | null = null;
   private lastNonTtyTaskLog: number = 0;
   private lastNonTtyFileLog: number = 0;
+  private config: Config | null = null;
 
   /**
    * Starts progress tracking for an operation
    * Creates and initializes the ExecutionResult
    */
   public start(config: Config): void {
+    this.config = config;
     this.executionResult = {
       command: config.command,
       success: false,
@@ -306,7 +309,11 @@ class ProgressService {
   public updateDiscoveryProgress(fileCount: number, currentDir: string): void {
     // Handle non-TTY logging
     if (!isTTY()) {
-      const truncatedDir = currentDir.length > 50 ? currentDir.substring(0, 47) + "..." : currentDir;
+      const truncatedDir = truncatePathIfNotVerbose(
+        currentDir,
+        50,
+        this.config?.verbose ?? false
+      );
       logger.log(`Scanning: ${truncatedDir} | Found: ${fileCount.toLocaleString()}`);
     }
     displayService.updateDiscoveryProgress(fileCount, currentDir);
