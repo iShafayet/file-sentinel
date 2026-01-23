@@ -4,7 +4,7 @@ import { sanityService } from "./service/sanity-service.js";
 import { coreService } from "./service/core-service.js";
 import { progressService } from "./service/progress-service.js";
 import { ExecutionResult } from "./model/execution-results.js";
-import { applyTtyAndVerbosityGlobally, getVersion } from "./utility/misc-utils.js";
+import { applyTtyAndVerbosityGlobally, getVersion, getBuildDate } from "./utility/misc-utils.js";
 import { DatabaseService } from "./service/database-service.js";
 
 /**
@@ -35,7 +35,10 @@ export class FileSentinelProgram {
    * Initializes the program and validates configuration
    */
   private async initialize(): Promise<void> {
-    logger.log(`(program)> Initializing file-sentinel v${getVersion()}`);
+    const version = getVersion();
+    const buildDate = getBuildDate();
+    const buildInfo = buildDate ? ` (Built on: ${buildDate})` : "";
+    logger.log(`(program)> Initializing file-sentinel v${version}${buildInfo}`);
 
     try {
       sanityService.verifyPathsInConfig(this.config);
