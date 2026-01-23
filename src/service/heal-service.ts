@@ -101,13 +101,23 @@ class HealService {
             progressService.incrementFilesRecovered();
             progressService.addBytesProcessed(digestFile.size);
             logger.debug(`(heal-service)> Healed: ${relativePath}`);
+            if (!config.dryRun && db.isOpen()) {
+              db.updateFileAttempt(relativePath, "success");
+            }
           } else if (healResult.verified) {
             progressService.incrementFilesVerified();
             logger.debug(`(heal-service)> Verified: ${relativePath}`);
+            if (!config.dryRun && db.isOpen()) {
+              db.updateFileAttempt(relativePath, "success");
+            }
           } else {
             progressService.incrementFilesRecoveryFailed();
+            const errorMsg = `Failed: ${healResult.reason || "Unknown error"}`;
             progressService.addError(`Failed to heal ${relativePath}: ${healResult.reason}`);
             logger.logNegative(`(heal-service)> Failed: ${relativePath} - ${healResult.reason}`);
+            if (!config.dryRun && db.isOpen()) {
+              db.updateFileAttempt(relativePath, errorMsg);
+            }
 
             if (config.panicOnError) {
               throw new Error(`Heal failed: ${relativePath}`);
@@ -118,7 +128,11 @@ class HealService {
           progressService.incrementTotalFilesProcessed();
         } catch (error) {
           logger.logNegative(`(heal-service)> Error healing file: ${relativePath}`);
+          const errorMsg = `Error: ${(error as Error).message}`;
           progressService.addError(`Error healing ${relativePath}: ${(error as Error).message}`);
+          if (!config.dryRun && db.isOpen()) {
+            db.updateFileAttempt(relativePath, errorMsg);
+          }
           errorService.handleError(error);
 
           if (config.panicOnError) {

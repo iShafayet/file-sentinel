@@ -269,7 +269,10 @@ class DigestService {
           created_at: ctime,
           modified_at: mtime,
           hash_sha256: hash,
+          last_attempted_at: Date.now(),
+          last_attempt_result: null,
         });
+        db.updateFileAttempt(relativePath, "success");
       }
 
       return "added";
@@ -294,7 +297,10 @@ class DigestService {
             created_at: ctime,
             modified_at: mtime,
             hash_sha256: hash,
+            last_attempted_at: Date.now(),
+            last_attempt_result: null,
           });
+          db.updateFileAttempt(relativePath, "success");
         }
         return "updated";
       }
@@ -307,7 +313,10 @@ class DigestService {
           created_at: ctime,
           modified_at: mtime,
           hash_sha256: hash,
+          last_attempted_at: Date.now(),
+          last_attempt_result: null,
         });
+        db.updateFileAttempt(relativePath, "success");
       }
       return "updated";
     }

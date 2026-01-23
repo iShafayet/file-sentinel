@@ -82,6 +82,33 @@ export class DatabaseService {
     for (const indexSQL of SCHEMA.indexes) {
       this.db!.exec(indexSQL);
     }
+
+    // Migrate existing databases to add new columns if they don't exist
+    this.migrateSchema();
+  }
+
+  /**
+   * Migrates schema by adding new columns if they don't exist
+   */
+  private migrateSchema(): void {
+    this.ensureOpen();
+
+    try {
+      // Check if last_attempted_at column exists
+      const tableInfo = this.db!.prepare("PRAGMA table_info(files)").all() as Array<{ name: string }>;
+      const columnNames = tableInfo.map((col) => col.name);
+
+      if (!columnNames.includes("last_attempted_at")) {
+        this.db!.exec("ALTER TABLE files ADD COLUMN last_attempted_at INTEGER DEFAULT 0");
+      }
+
+      if (!columnNames.includes("last_attempt_result")) {
+        this.db!.exec("ALTER TABLE files ADD COLUMN last_attempt_result TEXT");
+      }
+    } catch (error) {
+      // If migration fails, log but don't throw (allows database to still work)
+      console.warn("Schema migration warning:", (error as Error).message);
+    }
   }
 
   // ==================== Summary Operations ====================
@@ -176,16 +203,44 @@ export class DatabaseService {
    */
   upsertFile(data: FileData): void {
     this.ensureOpen();
+    const lastAttemptedAt = data.last_attempted_at ?? 0;
+    const lastAttemptResult = data.last_attempt_result ?? null;
     const stmt = this.db!.prepare(`
-      INSERT INTO files (relative_path, size, created_at, modified_at, hash_sha256)
-      VALUES (?, ?, ?, ?, ?)
+      INSERT INTO files (relative_path, size, created_at, modified_at, hash_sha256, last_attempted_at, last_attempt_result)
+      VALUES (?, ?, ?, ?, ?, ?, ?)
       ON CONFLICT(relative_path) DO UPDATE SET
         size = excluded.size,
         modified_at = excluded.modified_at,
-        hash_sha256 = excluded.hash_sha256
+        hash_sha256 = excluded.hash_sha256,
+        last_attempted_at = excluded.last_attempted_at,
+        last_attempt_result = excluded.last_attempt_result
     `);
 
-    stmt.run(data.relative_path, data.size, data.created_at, data.modified_at, data.hash_sha256);
+    stmt.run(
+      data.relative_path,
+      data.size,
+      data.created_at,
+      data.modified_at,
+      data.hash_sha256,
+      lastAttemptedAt,
+      lastAttemptResult
+    );
+  }
+
+  /**
+   * Updates the attempt tracking fields for a file
+   * @param relativePath - The relative path of the file
+   * @param result - The result of the operation (e.g., "success", "failed", "error")
+   */
+  updateFileAttempt(relativePath: string, result: string | null): void {
+    this.ensureOpen();
+    const stmt = this.db!.prepare(`
+      UPDATE files
+      SET last_attempted_at = ?, last_attempt_result = ?
+      WHERE relative_path = ?
+    `);
+
+    stmt.run(Date.now(), result, relativePath);
   }
 
   /**
@@ -202,7 +257,13 @@ export class DatabaseService {
    */
   getAllFiles(): FileRow[] {
     this.ensureOpen();
-    const stmt = this.db!.prepare("SELECT * FROM files ORDER BY relative_path");
+    const stmt = this.db!.prepare(`
+      SELECT * FROM files 
+      ORDER BY 
+        CASE WHEN last_attempted_at = 0 THEN 0 ELSE 1 END,
+        last_attempted_at DESC, 
+        relative_path
+    `);
     return stmt.all() as FileRow[];
   }
 
@@ -215,7 +276,14 @@ export class DatabaseService {
     const normalizedSubdir = subdirectory.replace(/^\/+|\/+$/g, "");
     const pattern = normalizedSubdir + "/%";
 
-    const stmt = this.db!.prepare("SELECT * FROM files WHERE relative_path LIKE ? ORDER BY relative_path");
+    const stmt = this.db!.prepare(`
+      SELECT * FROM files 
+      WHERE relative_path LIKE ? 
+      ORDER BY 
+        CASE WHEN last_attempted_at = 0 THEN 0 ELSE 1 END,
+        last_attempted_at DESC, 
+        relative_path
+    `);
     return stmt.all(pattern) as FileRow[];
   }
 

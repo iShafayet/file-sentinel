@@ -31,7 +31,9 @@ export const SCHEMA = {
       size INTEGER NOT NULL,
       created_at INTEGER NOT NULL,
       modified_at INTEGER NOT NULL,
-      hash_sha256 TEXT NOT NULL
+      hash_sha256 TEXT NOT NULL,
+      last_attempted_at INTEGER DEFAULT 0,
+      last_attempt_result TEXT
     )
   `,
 
@@ -65,6 +67,8 @@ export type FileRow = {
   created_at: number;
   modified_at: number;
   hash_sha256: string;
+  last_attempted_at: number;
+  last_attempt_result: string | null;
 };
 
 // Input data types (for inserts/updates)
@@ -81,5 +85,7 @@ export type FileData = {
   created_at: number;
   modified_at: number;
   hash_sha256: string;
+  last_attempted_at?: number;
+  last_attempt_result?: string | null;
 };
 
