@@ -1,0 +1,21 @@
+{
+  "name": "file-sentinel-cli-tests",
+  "version": "1.0.0",
+  "description": "CLI integration tests for file-sentinel",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test": "bats test-*.bats",
+    "test:digest": "bats test-digest.bats",
+    "test:verify": "bats test-verify.bats",
+    "test:replicate": "bats test-replicate.bats",
+    "test:heal": "bats test-heal.bats",
+    "test:compare": "bats test-compare.bats"
+  },
+  "devDependencies": {
+    "bats": "^1.11.0"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  }
+}
