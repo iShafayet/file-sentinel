@@ -3,7 +3,7 @@
  * NOTE: This is a shared state for the entire application.
  */
 
-let forcedNonTTY = false;
+let forcedNonTTY = true;
 
 /**
  * Force non-TTY mode for testing or CI environments
