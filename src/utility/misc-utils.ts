@@ -47,6 +47,23 @@ function getVersion(): string {
   return packageJson.version;
 }
 
+/**
+ * Gets the build date from build-info.json (generated during build)
+ * Returns null if build-info.json doesn't exist (e.g., in development)
+ */
+function getBuildDate(): string | null {
+  try {
+    const __filename = fileURLToPath(import.meta.url);
+    const __dirname = dirname(__filename);
+    const buildInfoPath = join(__dirname, "../build-info.json");
+    const buildInfo = JSON.parse(readFileSync(buildInfoPath, "utf-8"));
+    return buildInfo.buildDate || null;
+  } catch (error) {
+    // Build info file doesn't exist (e.g., in development mode)
+    return null;
+  }
+}
+
 function applyTtyAndVerbosityGlobally(config: Config): void {
   // Set logger verbosity
   logger.setVerbosity(config.verbose);
@@ -59,4 +76,4 @@ function applyTtyAndVerbosityGlobally(config: Config): void {
   }
 }
 
-export { extract, strip, getVersion, applyTtyAndVerbosityGlobally };
+export { extract, strip, getVersion, getBuildDate, applyTtyAndVerbosityGlobally };
