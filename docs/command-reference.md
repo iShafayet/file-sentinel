@@ -163,6 +163,74 @@ file-sentinel digest -i ~/docs::~/docs.db -a sha256
 
 **Currently supported**: sha256 only
 
+#### --compatibility-risk-strategy <strategy>
+
+Specify how to handle filenames with problematic characters that may cause issues on some filesystems (FAT32, exFAT, NTFS, macOS, Windows).
+
+```bash
+file-sentinel digest -i ~/docs::~/docs.db --compatibility-risk-strategy=skip
+```
+
+**Default**: `abort`
+
+**Problematic characters**: `/`, `<`, `>`, `:`, `"`, `\`, `|`, `?`, `*`, `\0` (null byte)
+
+**Available strategies**:
+
+1. **`abort`** (default)
+   - Stops immediately when a problematic filename is detected
+   - Displays a detailed error message with options
+   - Use when you want to manually fix filenames before proceeding
+
+2. **`skip`**
+   - Skips files with problematic names
+   - Logs a warning for each skipped file
+   - Continues processing other files
+   - Use when you want to ignore problematic files
+
+3. **`accept-risk`**
+   - Processes files with problematic names as-is
+   - May fail later during replicate or heal operations
+   - Use when you know the target filesystem supports these characters
+
+4. **`mitigate-or-abort`**
+   - Attempts to automatically rename files to safe alternatives
+   - Replaces problematic characters with `!`
+   - Aborts if renaming fails
+   - Use when you want automatic fixes but need to know if they fail
+
+5. **`mitigate-or-skip`**
+   - Attempts to automatically rename files to safe alternatives
+   - Skips files if renaming fails
+   - Use when you want automatic fixes but can tolerate some failures
+
+6. **`mitigate-or-accept-risk`**
+   - Attempts to automatically rename files to safe alternatives
+   - Accepts original filename if renaming fails
+   - Use when you want automatic fixes but will accept risk if they fail
+
+**Examples**:
+
+```bash
+# Skip problematic files
+file-sentinel digest -i ~/docs::~/docs.db --compatibility-risk-strategy=skip
+
+# Auto-rename problematic files (abort if rename fails)
+file-sentinel digest -i ~/docs::~/docs.db --compatibility-risk-strategy=mitigate-or-abort
+
+# Accept risky filenames (may fail on replicate/heal)
+file-sentinel digest -i ~/docs::~/docs.db --compatibility-risk-strategy=accept-risk
+```
+
+**When to use**:
+
+- **Cross-platform compatibility**: When you plan to replicate to different filesystems (e.g., Windows FAT32, macOS, Linux)
+- **Mixed filesystems**: When your source and destination use different filesystems
+- **Legacy data**: When dealing with files that may have been created on different systems
+- **Automated workflows**: When you want automatic handling without manual intervention
+
+**Note**: This option only affects the `digest` command. Files with problematic names that were accepted during digest may still fail during `replicate` or `heal` operations if the target filesystem doesn't support them.
+
 ### What It Does
 
 1. **Scans the directory** - Finds all regular files recursively
@@ -722,6 +790,19 @@ Specify the remote (destination) digest file path.
 ```
 
 ### Optional Options
+
+#### -s, --subdirectory <path>
+
+Compare only files in a specific subdirectory.
+
+```bash
+file-sentinel compare \
+  --local ~/Documents/digest.db \
+  --remote /backup/Documents/digest.db \
+  -s photos/2024
+```
+
+**Path is relative** to the directory root in the digest.
 
 #### --verbose
 
