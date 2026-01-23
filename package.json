@@ -43,6 +43,9 @@
     "start": "node dist/src/start.js",
     "start-compiled": "npm run build && npm start",
     "test": "npm run build && node --experimental-vm-modules node_modules/jest/bin/jest.js",
+    "test:cli": "cd cli-tests && npm install && npm test",
+    "test:cli:setup": "cd cli-tests && npm install",
+    "test:all": "npm test && npm run test:cli",
     "install-cli": "npm run build && npm install -g ."
   },
   "dependencies": {
