@@ -1,6 +1,6 @@
 {
   "name": "file-sentinel",
-  "version": "2.2.5",
+  "version": "2.2.6",
   "description": "File integrity verification, replication, and recovery tool.",
   "author": "Sayem Shafayet <ishafayet@gmail.com>",
   "license": "GPL-3.0",
