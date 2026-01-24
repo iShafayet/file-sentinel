@@ -114,7 +114,6 @@ class ReplicateService {
 
       let filesProcessedInBatch = 0;
       const batchCommitSize = constants.DB_BATCH_COMMIT_SIZE;
-      let transactionActive = false;
 
       for (let i = 0; i < sourceFiles.length; i++) {
         const sourceFile = sourceFiles[i];
@@ -131,10 +130,8 @@ class ReplicateService {
           }
         }
 
-        // Start transaction if needed
-        if (!config.dryRun && destDb.isOpen() && !transactionActive) {
+        if (!config.dryRun && destDb.isOpen() && filesProcessedInBatch === 0) {
           destDb.beginTransaction();
-          transactionActive = true;
         }
 
         // Update progress display
@@ -200,9 +197,8 @@ class ReplicateService {
           filesProcessedInBatch++;
 
           // Commit batch if we've processed enough files
-          if (!config.dryRun && destDb.isOpen() && transactionActive && filesProcessedInBatch >= batchCommitSize) {
+          if (!config.dryRun && destDb.isOpen() && filesProcessedInBatch >= batchCommitSize) {
             destDb.commitTransaction();
-            transactionActive = false;
             filesProcessedInBatch = 0;
           }
         } catch (error) {
@@ -211,15 +207,9 @@ class ReplicateService {
           errorService.handleError(error);
 
           if (config.panicOnError) {
-            // Commit current batch before throwing
-            if (!config.dryRun && destDb.isOpen() && transactionActive) {
-              try {
-                destDb.commitTransaction();
-                transactionActive = false;
-                filesProcessedInBatch = 0;
-              } catch (commitError) {
-                logger.logNegative(`(replicate-service)> Error committing batch: ${(commitError as Error).message}`);
-              }
+            if (!config.dryRun && destDb.isOpen()) {
+              destDb.commitTransaction();
+              filesProcessedInBatch = 0;
             }
             throw error;
           }
@@ -227,15 +217,13 @@ class ReplicateService {
       }
 
       // Commit any remaining files in the current batch
-      if (!config.dryRun && destDb.isOpen() && transactionActive) {
+      if (!config.dryRun && destDb.isOpen()) {
         destDb.commitTransaction();
-        transactionActive = false;
       }
 
       // Handle deletions (files in dest but not in source)
       if (!config.dryRun && destDb.isOpen()) {
         destDb.beginTransaction();
-        transactionActive = true;
         const sourceFileSet = new Set(sourceFiles.map((f) => f.relative_path));
 
         for (const [relativePath] of destFileMap) {
@@ -262,14 +250,12 @@ class ReplicateService {
           }
         }
         destDb.commitTransaction();
-        transactionActive = false;
       }
 
       // Update destination summary
       const result = progressService.getExecutionResult();
       if (!config.dryRun && destDb.isOpen()) {
         destDb.beginTransaction();
-        transactionActive = true;
         const now = Date.now();
         const existingSummary = destDb.getSummary();
 
@@ -282,7 +268,6 @@ class ReplicateService {
           });
         }
         destDb.commitTransaction();
-        transactionActive = false;
       }
 
       const success = result && result.filesRecoveryFailed === 0;
