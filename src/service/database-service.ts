@@ -259,10 +259,7 @@ export class DatabaseService {
     this.ensureOpen();
     const stmt = this.db!.prepare(`
       SELECT * FROM files 
-      ORDER BY 
-        CASE WHEN last_attempted_at = 0 THEN 0 ELSE 1 END,
-        last_attempted_at DESC, 
-        relative_path
+      ORDER BY last_attempted_at ASC, relative_path
     `);
     return stmt.all() as FileRow[];
   }
@@ -279,10 +276,7 @@ export class DatabaseService {
     const stmt = this.db!.prepare(`
       SELECT * FROM files 
       WHERE relative_path LIKE ? 
-      ORDER BY 
-        CASE WHEN last_attempted_at = 0 THEN 0 ELSE 1 END,
-        last_attempted_at DESC, 
-        relative_path
+      ORDER BY last_attempted_at ASC, relative_path
     `);
     return stmt.all(pattern) as FileRow[];
   }
