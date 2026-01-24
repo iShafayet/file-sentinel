@@ -71,7 +71,10 @@ class Logger {
   /**
    * Enable log buffering mode
    */
-  public enableBuffering() {
+  public enableBufferingIfTty() {
+    if (!isTTY()) {
+      return;
+    }
     this.buffering = true;
     this.logBuffer = [];
   }

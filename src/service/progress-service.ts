@@ -309,11 +309,7 @@ class ProgressService {
   public updateDiscoveryProgress(fileCount: number, currentDir: string): void {
     // Handle non-TTY logging
     if (!isTTY()) {
-      const truncatedDir = truncatePathIfNotVerbose(
-        currentDir,
-        50,
-        this.config?.verbose ?? false
-      );
+      const truncatedDir = truncatePathIfNotVerbose(currentDir, 50, this.config?.verbose ?? false);
       logger.log(`Scanning: ${truncatedDir} | Found: ${fileCount.toLocaleString()}`);
     }
     displayService.updateDiscoveryProgress(fileCount, currentDir);
@@ -336,13 +332,13 @@ class ProgressService {
     const CONSOLE_WIDTH = 80;
     const runningTime = this.getFormattedRunningTime(
       this.executionResult.startedEpoch,
-      this.executionResult.completedEpoch
+      this.executionResult.completedEpoch,
     );
     const bytesProcessed = this.formatBytes(this.executionResult.totalBytesProcessed);
 
     logger.log("=".repeat(CONSOLE_WIDTH));
     logger.log(
-      `${this.executionResult.command.toUpperCase()} Operation ${this.executionResult.success ? "COMPLETED" : "FAILED"}`
+      `${this.executionResult.command.toUpperCase()} Operation ${this.executionResult.success ? "COMPLETED" : "FAILED"}`,
     );
     logger.log("=".repeat(CONSOLE_WIDTH));
 
@@ -395,7 +391,7 @@ class ProgressService {
       });
     } else if (this.executionResult.errors.length > 0) {
       logger.logNegative(
-        `\n${this.executionResult.errors.length} errors encountered. Run with --verbose to see details.`
+        `\n${this.executionResult.errors.length} errors encountered. Run with --verbose to see details.`,
       );
     }
 
@@ -439,8 +435,17 @@ class ProgressService {
    * Stops display and shows buffered logs
    * @param waitForKeyPress - Whether to wait for user keypress before showing logs
    */
-  public async stopDisplayAndShowLogs({ waitForKeyPress }: { waitForKeyPress: boolean }): Promise<void> {
-    return await displayService.stopDisplayAndShowLogs({ waitForKeyPress });
+  public async stopDisplayIfActiveAndShowLogsIfBuffered({
+    waitForKeyPress,
+  }: {
+    waitForKeyPress: boolean;
+  }): Promise<void> {
+    if (isTTY()) {
+      return await displayService.stopDisplayAndShowLogs({ waitForKeyPress });
+    }
+
+    // It's unlikely to have buffered logs in non-TTY mode, but to future-proof, we flush them anyway.
+    logger.flushBufferedLogs();
   }
 }
 

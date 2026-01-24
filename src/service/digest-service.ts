@@ -20,7 +20,7 @@ class DigestService {
    */
   async execute(config: DigestConfig): Promise<ExecutionResult> {
     // Enable buffering and start display (creates ExecutionResult)
-    logger.enableBuffering();
+    logger.enableBufferingIfTty();
     progressService.start(config);
 
     logger.log("=".repeat(80));
@@ -44,7 +44,7 @@ class DigestService {
         if (!isFileWritable(config.digestFile)) {
           throw new Error(
             `Digest file is read-only or cannot be written: ${config.digestFile}. ` +
-            `Please check file permissions (use chmod to make it writable if needed).`
+              `Please check file permissions (use chmod to make it writable if needed).`,
           );
         }
 
@@ -62,13 +62,16 @@ class DigestService {
         (fileCount, currentDir) => {
           progressService.updateDiscoveryProgress(fileCount, currentDir);
         },
-        config.compatibilityRiskStrategy
+        config.compatibilityRiskStrategy,
       );
       progressService.stopDiscovery();
       logger.log(`(digest-service)> Discovered ${discoveredFiles.length} files`);
 
       // Get existing files from database (filtered by subdirectory if specified)
-      const existingFileMap = new Map<string, { hash: string; size: number; mtime: number; last_attempted_at: number }>();
+      const existingFileMap = new Map<
+        string,
+        { hash: string; size: number; mtime: number; last_attempted_at: number }
+      >();
 
       if (!config.dryRun && db.isOpen()) {
         const existingFiles = config.subdirectory ? db.getFilesInSubdirectory(config.subdirectory) : db.getAllFiles();
@@ -83,7 +86,7 @@ class DigestService {
         logger.log(
           `(digest-service)> Found ${existingFileMap.size} existing entries in digest${
             config.subdirectory ? ` (subdirectory: ${config.subdirectory})` : ""
-          }`
+          }`,
         );
       }
 
@@ -100,7 +103,10 @@ class DigestService {
 
           // Check recency threshold
           const existingFile = existingFileMap.get(relativePath);
-          if (existingFile && shouldSkipFileByRecency(existingFile.last_attempted_at, config.recencyThreshold, relativePath, logger)) {
+          if (
+            existingFile &&
+            shouldSkipFileByRecency(existingFile.last_attempted_at, config.recencyThreshold, relativePath, logger)
+          ) {
             continue;
           }
 
@@ -120,7 +126,7 @@ class DigestService {
               config.hashAlgorithm,
               db,
               existingFileMap,
-              config.dryRun
+              config.dryRun,
             );
 
             switch (status) {
@@ -210,14 +216,15 @@ class DigestService {
       progressService.logExecutionResult(config.verbose);
     } catch (error) {
       logger.logNegative("(digest-service)> Digest operation failed");
-      
+
       // Check for SQLITE_READONLY errors and provide clearer message
       let errorMessage = (error as Error).message;
       if ((error as any).code === "SQLITE_READONLY" || errorMessage.includes("readonly database")) {
-        errorMessage = `Digest file is read-only: ${config.digestFile}. ` +
+        errorMessage =
+          `Digest file is read-only: ${config.digestFile}. ` +
           `Cannot write to the database. Please check file permissions (use chmod to make it writable if needed).`;
       }
-      
+
       progressService.addError(`Digest failed: ${errorMessage}`);
       progressService.completeExecution(false);
       errorService.handleError(error);
@@ -251,7 +258,7 @@ class DigestService {
     hashAlgorithm: "sha256",
     db: DatabaseService,
     existingFileMap: Map<string, { hash: string; size: number; mtime: number; last_attempted_at: number }>,
-    dryRun: boolean
+    dryRun: boolean,
   ): Promise<"added" | "updated" | "unchanged"> {
     const fullPath = path.join(rootDir, relativePath);
     const stats = fs.statSync(fullPath);

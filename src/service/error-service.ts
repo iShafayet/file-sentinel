@@ -40,7 +40,7 @@ class ErrorService {
       logger.logNegative(`(error-service)> Terminating due to error: ${String(error)}`);
     }
 
-    await progressService.stopDisplayAndShowLogs({ waitForKeyPress: false });
+    await progressService.stopDisplayIfActiveAndShowLogsIfBuffered({ waitForKeyPress: false });
     process.exit(1);
   }
 }

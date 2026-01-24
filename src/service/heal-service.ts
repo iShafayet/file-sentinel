@@ -23,7 +23,7 @@ class HealService {
    */
   async execute(config: HealConfig): Promise<ExecutionResult> {
     // Enable buffering and start display (creates ExecutionResult)
-    logger.enableBuffering();
+    logger.enableBufferingIfTty();
     progressService.start(config);
 
     logger.log("=".repeat(80));
@@ -51,8 +51,8 @@ class HealService {
         if (!isFileWritable(config.digestFile)) {
           throw new Error(
             `Digest file is read-only or cannot be written: ${config.digestFile}. ` +
-            `Heal operation requires write access to log operations. ` +
-            `Please check file permissions (use chmod to make it writable if needed).`
+              `Heal operation requires write access to log operations. ` +
+              `Please check file permissions (use chmod to make it writable if needed).`,
           );
         }
 
@@ -100,7 +100,7 @@ class HealService {
             config.mirrors,
             config.hashAlgorithm,
             config.dryRun,
-            config.validatePostCopy
+            config.validatePostCopy,
           );
 
           if (healResult.healed) {
@@ -165,14 +165,15 @@ class HealService {
       progressService.logExecutionResult(config.verbose);
     } catch (error) {
       logger.logNegative("(heal-service)> Heal operation failed");
-      
+
       // Check for SQLITE_READONLY errors and provide clearer message
       let errorMessage = (error as Error).message;
       if ((error as any).code === "SQLITE_READONLY" || errorMessage.includes("readonly database")) {
-        errorMessage = `Digest file is read-only: ${config.digestFile}. ` +
+        errorMessage =
+          `Digest file is read-only: ${config.digestFile}. ` +
           `Cannot write to the database. Please check file permissions (use chmod to make it writable if needed).`;
       }
-      
+
       progressService.addError(`Heal failed: ${errorMessage}`);
       progressService.completeExecution(false);
       errorService.handleError(error);
@@ -208,7 +209,7 @@ class HealService {
     mirrors: Array<{ dir: string; digestFile: string }>,
     hashAlgorithm: "sha256",
     dryRun: boolean,
-    validatePostCopy: boolean
+    validatePostCopy: boolean,
   ): Promise<{ verified: boolean; healed: boolean; reason?: string }> {
     const targetPath = joinPath(targetDir, relativePath);
 
@@ -287,7 +288,7 @@ class HealService {
             // Include file path in error for context
             let errorMsg = getFileSystemErrorMessage(
               err,
-              `Failed to create target directory for file ${relativePath}: ${targetDirPath}`
+              `Failed to create target directory for file ${relativePath}: ${targetDirPath}`,
             );
 
             // If path contains colon and we got ENOENT, suggest filesystem limitation
