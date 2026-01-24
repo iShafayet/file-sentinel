@@ -96,7 +96,6 @@ class DigestService {
 
       let filesProcessedInBatch = 0;
       const batchCommitSize = constants.DB_BATCH_COMMIT_SIZE;
-      let transactionActive = false;
 
       for (let i = 0; i < discoveredFiles.length; i++) {
         const relativePath = discoveredFiles[i];
@@ -110,10 +109,8 @@ class DigestService {
           continue;
         }
 
-        // Start transaction if needed
-        if (!config.dryRun && db.isOpen() && !transactionActive) {
+        if (!config.dryRun && db.isOpen() && filesProcessedInBatch === 0) {
           db.beginTransaction();
-          transactionActive = true;
         }
 
         // Update progress display
@@ -157,9 +154,8 @@ class DigestService {
           progressService.updateFileProgress(100, 100, relativePath);
 
           // Commit batch if we've processed enough files
-          if (!config.dryRun && db.isOpen() && transactionActive && filesProcessedInBatch >= batchCommitSize) {
+          if (!config.dryRun && db.isOpen() && filesProcessedInBatch >= batchCommitSize) {
             db.commitTransaction();
-            transactionActive = false;
             filesProcessedInBatch = 0;
           }
         } catch (error) {
@@ -168,15 +164,9 @@ class DigestService {
           errorService.handleError(error);
 
           if (config.panicOnError) {
-            // Commit current batch before throwing
-            if (!config.dryRun && db.isOpen() && transactionActive) {
-              try {
-                db.commitTransaction();
-                transactionActive = false;
-                filesProcessedInBatch = 0;
-              } catch (commitError) {
-                logger.logNegative(`(digest-service)> Error committing batch: ${(commitError as Error).message}`);
-              }
+            if (!config.dryRun && db.isOpen()) {
+              db.commitTransaction();
+              filesProcessedInBatch = 0;
             }
             throw error;
           }
@@ -184,15 +174,13 @@ class DigestService {
       }
 
       // Commit any remaining files in the current batch
-      if (!config.dryRun && db.isOpen() && transactionActive) {
+      if (!config.dryRun && db.isOpen()) {
         db.commitTransaction();
-        transactionActive = false;
       }
 
       // Remove entries for files that no longer exist
       if (!config.dryRun && db.isOpen()) {
         db.beginTransaction();
-        transactionActive = true;
         const discoveredSet = new Set(discoveredFiles);
         for (const [relativePath] of existingFileMap) {
           if (!discoveredSet.has(relativePath)) {
@@ -204,13 +192,11 @@ class DigestService {
           }
         }
         db.commitTransaction();
-        transactionActive = false;
       }
 
       // Update summary
       if (!config.dryRun && db.isOpen()) {
         db.beginTransaction();
-        transactionActive = true;
         const now = Date.now();
         const existingSummary = db.getSummary();
         const result = progressService.getExecutionResult();
@@ -224,7 +210,6 @@ class DigestService {
           });
         }
         db.commitTransaction();
-        transactionActive = false;
       }
 
       progressService.completeExecution(true);

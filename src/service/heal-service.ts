@@ -76,7 +76,6 @@ class HealService {
 
       let filesProcessedInBatch = 0;
       const batchCommitSize = constants.DB_BATCH_COMMIT_SIZE;
-      let transactionActive = false;
 
       for (let i = 0; i < digestFiles.length; i++) {
         const digestFile = digestFiles[i];
@@ -87,10 +86,8 @@ class HealService {
           continue;
         }
 
-        // Start transaction if needed
-        if (!config.dryRun && db.isOpen() && !transactionActive) {
+        if (!config.dryRun && db.isOpen() && filesProcessedInBatch === 0) {
           db.beginTransaction();
-          transactionActive = true;
         }
 
         // Update progress display
@@ -146,9 +143,8 @@ class HealService {
           filesProcessedInBatch++;
 
           // Commit batch if we've processed enough files
-          if (!config.dryRun && db.isOpen() && transactionActive && filesProcessedInBatch >= batchCommitSize) {
+          if (!config.dryRun && db.isOpen() && filesProcessedInBatch >= batchCommitSize) {
             db.commitTransaction();
-            transactionActive = false;
             filesProcessedInBatch = 0;
           }
         } catch (error) {
@@ -162,15 +158,9 @@ class HealService {
           errorService.handleError(error);
 
           if (config.panicOnError) {
-            // Commit current batch before throwing
-            if (!config.dryRun && db.isOpen() && transactionActive) {
-              try {
-                db.commitTransaction();
-                transactionActive = false;
-                filesProcessedInBatch = 0;
-              } catch (commitError) {
-                logger.logNegative(`(heal-service)> Error committing batch: ${(commitError as Error).message}`);
-              }
+            if (!config.dryRun && db.isOpen()) {
+              db.commitTransaction();
+              filesProcessedInBatch = 0;
             }
             throw error;
           }
@@ -178,9 +168,8 @@ class HealService {
       }
 
       // Commit any remaining files in the current batch
-      if (!config.dryRun && db.isOpen() && transactionActive) {
+      if (!config.dryRun && db.isOpen()) {
         db.commitTransaction();
-        transactionActive = false;
       }
 
       // Complete operation

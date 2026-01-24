@@ -334,7 +334,14 @@ export class DatabaseService {
    */
   beginTransaction(): void {
     this.ensureOpen();
-    this.db!.exec("BEGIN TRANSACTION");
+    try {
+      this.db!.exec("BEGIN TRANSACTION");
+    } catch (error) {
+      const errorMessage = (error as Error).message;
+      if (!errorMessage.includes("transaction is already active") && !errorMessage.includes("cannot start a transaction")) {
+        throw error;
+      }
+    }
   }
 
   /**
@@ -342,7 +349,14 @@ export class DatabaseService {
    */
   commitTransaction(): void {
     this.ensureOpen();
-    this.db!.exec("COMMIT");
+    try {
+      this.db!.exec("COMMIT");
+    } catch (error) {
+      const errorMessage = (error as Error).message;
+      if (!errorMessage.includes("no transaction is active") && !errorMessage.includes("cannot commit")) {
+        throw error;
+      }
+    }
   }
 
   /**
