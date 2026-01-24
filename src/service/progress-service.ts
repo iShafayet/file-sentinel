@@ -78,7 +78,7 @@ class ProgressService {
       } else if (config.command === "replicate") {
         directory = (config as any).sourceDir || "";
       }
-      logger.log(`Starting ${config.command} command on ${directory}`);
+      logger.log(`(progress-service)> Starting ${config.command} command on ${directory}`);
     }
 
     displayService.start(config);
@@ -296,7 +296,7 @@ class ProgressService {
    */
   public startDiscovery(): void {
     if (!isTTY()) {
-      logger.log("Starting file discovery...");
+      logger.log("(progress-service)> Starting file discovery...");
     }
     displayService.startDiscovery();
   }
@@ -310,7 +310,7 @@ class ProgressService {
     // Handle non-TTY logging
     if (!isTTY()) {
       const truncatedDir = truncatePathIfNotVerbose(currentDir, 50, this.config?.verbose ?? false);
-      logger.log(`Scanning: ${truncatedDir} | Found: ${fileCount.toLocaleString()}`);
+      logger.log(`(progress-service)> Scanning: ${truncatedDir} | Found: ${fileCount.toLocaleString()}`);
     }
     displayService.updateDiscoveryProgress(fileCount, currentDir);
   }

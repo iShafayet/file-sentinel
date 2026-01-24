@@ -195,7 +195,7 @@ class DiscoveryService {
       case "abort":
         // Fail immediately with helpful message
         const errorMessage = formatRiskyPathError(childRelativePath, safePath);
-        logger.logNegative(errorMessage);
+        logger.logNegative(`(discovery-service)> ${errorMessage}`);
         throw new CompatibilityRiskError(
           childRelativePath,
           `Problematic name detected: ${childRelativePath}. Use --compatibility-risk-strategy to handle this.`
@@ -233,7 +233,7 @@ class DiscoveryService {
           if (strategy === "mitigate-or-abort") {
             // Fallback to abort
             const errorMessage = formatRiskyPathError(childRelativePath, safePath);
-            logger.logNegative(errorMessage);
+            logger.logNegative(`(discovery-service)> ${errorMessage}`);
             throw new CompatibilityRiskError(
               childRelativePath,
               `Failed to mitigate risky name: ${childRelativePath}. Mitigation failed and strategy is mitigate-or-abort.`
