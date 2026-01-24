@@ -10,6 +10,8 @@ import {
 } from "../model/config.js";
 import { parseInputOption } from "./path-utils.js";
 import { getVersion } from "./misc-utils.js";
+import { logger } from "../lib/logger.js";
+import { directLogger } from "../lib/direct-logger.js";
 
 /**
  * Parses command line arguments and returns a Config object
@@ -27,14 +29,14 @@ export function parseArgs(argv?: string[]): Config {
     .description("Create or update digest of a directory")
     .requiredOption(
       "-i, --input <dir::digest>",
-      "Input directory and digest file (format: /path/to/dir::/path/to/digest.db)"
+      "Input directory and digest file (format: /path/to/dir::/path/to/digest.db)",
     )
     .option("-s, --subdirectory <path>", "Subdirectory to digest")
     .option("-a, --hash-algorithm <algo>", "Hash algorithm", "sha256")
     .option(
       "--compatibility-risk-strategy <strategy>",
       "How to handle filenames with problematic characters (abort|skip|accept-risk|mitigate-or-abort|mitigate-or-skip|mitigate-or-accept-risk)",
-      "abort"
+      "abort",
     )
     .option("--verbose", "Verbose output", false)
     .option("--panic-on-error", "Exit on first error", false)
@@ -56,8 +58,8 @@ export function parseArgs(argv?: string[]): Config {
       if (!validStrategies.includes(compatibilityRiskStrategy)) {
         throw new Error(
           `Invalid compatibility-risk-strategy: ${compatibilityRiskStrategy}. Must be one of: ${validStrategies.join(
-            ", "
-          )}`
+            ", ",
+          )}`,
         );
       }
       const config: DigestConfig = {
@@ -83,7 +85,7 @@ export function parseArgs(argv?: string[]): Config {
     .description("Verify directory against digest")
     .requiredOption(
       "-i, --input <dir::digest>",
-      "Input directory and digest file (format: /path/to/dir::/path/to/digest.db)"
+      "Input directory and digest file (format: /path/to/dir::/path/to/digest.db)",
     )
     .option("-s, --subdirectory <path>", "Subdirectory to verify")
     .option("-a, --hash-algorithm <algo>", "Hash algorithm", "sha256")
@@ -117,23 +119,27 @@ export function parseArgs(argv?: string[]): Config {
     .description("Replicate directory to destination")
     .requiredOption(
       "-i, --input <dir::digest>",
-      "Source directory and digest file (format: /path/to/dir::/path/to/digest.db)"
+      "Source directory and digest file (format: /path/to/dir::/path/to/digest.db)",
     )
     .requiredOption(
       "-o, --output <dir::digest>",
-      "Destination directory and digest file (format: /path/to/dir::/path/to/digest.db)"
+      "Destination directory and digest file (format: /path/to/dir::/path/to/digest.db)",
     )
     .option("-s, --subdirectory <path>", "Subdirectory to replicate")
     .option(
       "--mirror <dir::digest>",
       "Mirror source (can be repeated, format: /path/to/dir::/path/to/digest.db)",
       collectMirrors,
-      []
+      [],
     )
     .option("--perma-delete", "Permanently delete instead of recycle", false)
     .option("--validate-post-copy", "Validate copied files after replication (default: enabled)", true)
     .option("--no-validate-post-copy", "Disable validation of copied files after replication", false)
-    .option("--trust-dest-digest", "Trust destination digest and skip on-disk hash verification for existing files", false)
+    .option(
+      "--trust-dest-digest",
+      "Trust destination digest and skip on-disk hash verification for existing files",
+      false,
+    )
     .option("-a, --hash-algorithm <algo>", "Hash algorithm", "sha256")
     .option("--verbose", "Verbose output", false)
     .option("--panic-on-error", "Exit on first error", false)
@@ -142,7 +148,7 @@ export function parseArgs(argv?: string[]): Config {
     .option("-t, --io-timeout <seconds>", "IO timeout in seconds", "30")
     .option("--recency-threshold <seconds>", "Skip files processed within this threshold (seconds)", "0")
     .action((options: any) => {
-      console.log(options);
+      logger.debug("(cli-parser)> options", options);
       const source = parseInputOption(options.input);
       const dest = parseInputOption(options.output);
       const config: ReplicateConfig = {
@@ -173,14 +179,14 @@ export function parseArgs(argv?: string[]): Config {
     .description("Heal directory from mirrors")
     .requiredOption(
       "-i, --input <dir::digest>",
-      "Directory and digest file to heal (format: /path/to/dir::/path/to/digest.db)"
+      "Directory and digest file to heal (format: /path/to/dir::/path/to/digest.db)",
     )
     .option("-s, --subdirectory <path>", "Subdirectory to heal")
     .requiredOption(
       "--mirror <dir::digest>",
       "Mirror source (can be repeated, at least one required, format: /path/to/dir::/path/to/digest.db)",
       collectMirrors,
-      []
+      [],
     )
     .option("--validate-post-copy", "Validate copied files after healing (default: enabled)", true)
     .option("--no-validate-post-copy", "Disable validation of copied files after healing", false)
@@ -196,7 +202,7 @@ export function parseArgs(argv?: string[]): Config {
 
       // Validate that at least one mirror is provided
       if (!options.mirror || options.mirror.length === 0) {
-        console.error("Error: At least one --mirror must be provided for the heal command");
+        directLogger.error("Error: At least one --mirror must be provided for the heal command");
         process.exit(1);
       }
 
@@ -206,7 +212,7 @@ export function parseArgs(argv?: string[]): Config {
         digestFile: digestFile,
         subdirectory: options.subdirectory || null,
         mirrors: options.mirror,
-        validatePostCopy: options.noValidatePostCopy ? false : options.validatePostCopy ?? true, // Default to true unless --no-validate-post-copy is used
+        validatePostCopy: options.noValidatePostCopy ? false : (options.validatePostCopy ?? true), // Default to true unless --no-validate-post-copy is used
         hashAlgorithm: options.hashAlgorithm as "sha256",
         verbose: options.verbose,
         panicOnError: options.panicOnError,
@@ -269,7 +275,7 @@ export function parseArgs(argv?: string[]): Config {
  */
 function collectMirrors(
   value: string,
-  previous: Array<{ dir: string; digestFile: string }>
+  previous: Array<{ dir: string; digestFile: string }>,
 ): Array<{ dir: string; digestFile: string }> {
   const parsed = parseInputOption(value);
   return [...previous, parsed];

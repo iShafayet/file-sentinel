@@ -1,5 +1,6 @@
 import Database from "better-sqlite3";
 import { SCHEMA, SummaryRow, OperationRow, FileRow, SummaryData, FileData } from "../model/database-schema.js";
+import { logger } from "../lib/logger.js";
 
 const openDatabaseServices: Set<DatabaseService> = new Set();
 
@@ -59,7 +60,7 @@ export class DatabaseService {
       const errorMessage = (error as Error).message;
       if (!errorMessage.includes("no transaction is active") && !errorMessage.includes("cannot commit")) {
         // Only log unexpected errors
-        console.warn("(database-service)> Warning: Failed to commit pending transaction:", errorMessage);
+        logger.warn(new Error(`(database-service)> Warning: Failed to commit pending transaction: ${errorMessage}`));
       }
     }
   }
@@ -133,7 +134,7 @@ export class DatabaseService {
       }
     } catch (error) {
       // If migration fails, log but don't throw (allows database to still work)
-      console.warn("Schema migration warning:", (error as Error).message);
+      logger.warn(new Error(`(database-service)> Schema migration warning: ${(error as Error).message}`));
     }
   }
 

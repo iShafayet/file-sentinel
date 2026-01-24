@@ -109,7 +109,7 @@ export function shouldSkipFileByRecency(
         ? `${minutesAgo} minute${minutesAgo > 1 ? "s" : ""} ${secondsAgo} second${secondsAgo !== 1 ? "s" : ""}`
         : `${secondsAgo} second${secondsAgo !== 1 ? "s" : ""}`;
     logger.log(
-      `Skipping ${relativePath} - processed ${timeStr} ago (within ${recencyThreshold} second threshold)`
+      `(misc-utils)> Skipping ${relativePath} - processed ${timeStr} ago (within ${recencyThreshold} second threshold)`
     );
     return true;
   }

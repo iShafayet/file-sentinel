@@ -6,6 +6,7 @@ import { progressService } from "./service/progress-service.js";
 import { ExecutionResult } from "./model/execution-results.js";
 import { applyTtyAndVerbosityGlobally, getVersion, getBuildDate } from "./utility/misc-utils.js";
 import { DatabaseService } from "./service/database-service.js";
+import { directLogger } from "./lib/direct-logger.js";
 
 /**
  * Main program entry point
@@ -77,12 +78,12 @@ export class FileSentinelProgram {
 
 // Global error handlers
 process.on("uncaughtException", function (err) {
-  console.error("=".repeat(80));
-  console.error("UNCAUGHT EXCEPTION");
-  console.error("=".repeat(80));
-  console.error("Message:", err.message);
-  console.error("Stack:", err.stack);
-  console.error("=".repeat(80));
+  directLogger.error("=".repeat(80));
+  directLogger.error("UNCAUGHT EXCEPTION");
+  directLogger.error("=".repeat(80));
+  directLogger.error("Message:", err.message);
+  directLogger.error("Stack:", err.stack);
+  directLogger.error("=".repeat(80));
   logger.flushBufferedLogs();
   DatabaseService.closeAllConnections();
   process.exit(1);
@@ -90,12 +91,12 @@ process.on("uncaughtException", function (err) {
 
 // Handle unhandled promise rejections
 process.on("unhandledRejection", function (reason, promise) {
-  console.error("=".repeat(80));
-  console.error("UNHANDLED PROMISE REJECTION");
-  console.error("=".repeat(80));
-  console.error("Reason:", reason);
-  console.error("Promise:", promise);
-  console.error("=".repeat(80));
+  directLogger.error("=".repeat(80));
+  directLogger.error("UNHANDLED PROMISE REJECTION");
+  directLogger.error("=".repeat(80));
+  directLogger.error("Reason:", reason);
+  directLogger.error("Promise:", promise);
+  directLogger.error("=".repeat(80));
   logger.flushBufferedLogs();
   DatabaseService.closeAllConnections();
   process.exit(1);
@@ -103,11 +104,11 @@ process.on("unhandledRejection", function (reason, promise) {
 
 // Handle SIGINT (Ctrl+C)
 process.on("SIGINT", () => {
-  logger.log("(program)> SIGINT received");
+  directLogger.log("(program)> SIGINT received");
   const bufferedCount = logger.getBufferedLogCount();
   if (bufferedCount > 0) {
-    console.log("\n");
-    console.log("Interrupted by user. Flushing buffered logs...");
+    directLogger.log("\n");
+    directLogger.log("Interrupted by user. Flushing buffered logs...");
     logger.flushBufferedLogs();
   }
 
@@ -117,11 +118,11 @@ process.on("SIGINT", () => {
 
 // Handle SIGTERM
 process.on("SIGTERM", () => {
-  logger.log("(program)> SIGTERM received");
+  directLogger.log("(program)> SIGTERM received");
   const bufferedCount = logger.getBufferedLogCount();
   if (bufferedCount > 0) {
-    console.log("\n");
-    console.log("Interrupted by user. Flushing buffered logs...");
+    directLogger.log("\n");
+    directLogger.log("Interrupted by user. Flushing buffered logs...");
     logger.flushBufferedLogs();
   }
 
