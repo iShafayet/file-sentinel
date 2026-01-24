@@ -14,6 +14,8 @@ A **digest** is the foundation of File Sentinel. It's a SQLite database that con
    - Creation timestamp
    - Last modification timestamp
    - SHA-256 cryptographic hash
+   - Last attempted timestamp (when the file was last processed)
+   - Last attempt result (success, error message, or null)
 
 2. **Summary Statistics**
    - Total number of files
@@ -148,6 +150,66 @@ File Sentinel operates through five main commands, each serving a specific purpo
 - Reports changed files (would be updated)
 - Reports deleted files (would be removed)
 - Does not read or modify actual files (digest-only operation)
+
+## Attempt Tracking and Recency Threshold
+
+File Sentinel tracks when each file was last processed to enable intelligent resumption of interrupted operations.
+
+### How Attempt Tracking Works
+
+Every time a file is processed (during digest, verify, replicate, or heal operations), File Sentinel:
+
+1. **Records the timestamp** - Updates `last_attempted_at` with the current time
+2. **Records the result** - Stores `last_attempt_result` (e.g., "success", "Missing file", or error message)
+3. **Orders files intelligently** - Files are ordered so that:
+   - Never-attempted files (timestamp = 0) are processed first
+   - Oldest attempted files come next (files that haven't been touched in the longest time)
+   - Most recently attempted files come last
+   - This ensures progress is made even when operations are interrupted, prioritizing files that need attention
+
+### Recency Threshold
+
+The `--recency-threshold` option allows you to skip files that were processed within a specified time window (in seconds).
+
+**How it works**:
+
+- When set to a value > 0, files processed within that threshold are skipped
+- Never-attempted files are always processed (regardless of threshold)
+- Skipped files are logged with a clear message showing how long ago they were processed
+- The database still returns all files; filtering happens in application code
+
+**Example**:
+
+```bash
+# Skip files processed in the last hour
+file-sentinel verify -i ~/docs::~/docs.db --recency-threshold 3600
+```
+
+If a file was processed 30 minutes ago and the threshold is 3600 seconds (1 hour), you'll see:
+```
+Skipping file.txt - processed 30 minutes ago (within 3600 second threshold)
+```
+
+### Why This Matters
+
+**Resume Interrupted Operations**:
+- If a verify operation is interrupted after processing 1000 files, you can resume and skip those already processed
+- No need to start from the beginning
+- Progress is preserved across multiple runs
+
+**Incremental Processing**:
+- Process only files that haven't been touched recently
+- Useful for large directories where you want to focus on new or changed files
+- Avoid redundant work on files that were just processed
+
+**Progress Preservation**:
+- Even if operations are continuously interrupted, you keep making progress
+- Files that were never attempted or attempted longest ago are prioritized
+- The system naturally focuses on files that need attention
+
+### Default Behavior
+
+By default, `--recency-threshold` is 0, meaning all files are processed regardless of when they were last attempted. This ensures backward compatibility and predictable behavior.
 
 ## Mirrors
 

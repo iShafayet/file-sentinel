@@ -88,6 +88,7 @@ File Sentinel provides five main commands:
 - **Recycle bin** - Soft deletion with recovery option
 - **Subdirectory filtering** - Process only specific folders
 - **Progress reporting** - Real-time feedback with progress bars and spinners
+- **Attempt tracking** - Resume interrupted operations with `--recency-threshold`
 - **Cross-platform** - Works on Linux, macOS, and Windows
 - **Dry-run mode** - Preview changes before execution
 - **Automation-friendly** - Clean output for scripts and CI/CD with `--no-tty`
