@@ -428,3 +428,132 @@ teardown() {
   local dest_size=$(stat -f%z "$dest_dir/large.bin" 2>/dev/null || stat -c%s "$dest_dir/large.bin")
   [ "$source_size" -eq "$dest_size" ]
 }
+
+@test "replicate: --trust-dest-digest skips hash check but verifies file existence and size" {
+  local source_dir="$TEST_TEMP_DIR/source"
+  local dest_dir="$TEST_TEMP_DIR/dest"
+  local source_digest="$TEST_TEMP_DIR/source.db"
+  local dest_digest="$TEST_TEMP_DIR/dest.db"
+  
+  create_test_structure "$source_dir"
+  mkdir -p "$dest_dir"
+  
+  # Create source digest
+  run file-sentinel digest -i "$source_dir::$source_digest" --no-tty
+  [ "$status" -eq 0 ]
+  
+  # First replication
+  run file-sentinel replicate \
+    -i "$source_dir::$source_digest" \
+    -o "$dest_dir::$dest_digest" \
+    --no-tty
+  [ "$status" -eq 0 ]
+  
+  # Second replication with --trust-dest-digest - should skip files
+  run file-sentinel replicate \
+    -i "$source_dir::$source_digest" \
+    -o "$dest_dir::$dest_digest" \
+    --trust-dest-digest \
+    --no-tty
+  [ "$status" -eq 0 ]
+  
+  # Files should still exist
+  assert_file_exists "$dest_dir/README.txt"
+  assert_file_exists "$dest_dir/photos/2024/photo1.jpg"
+}
+
+@test "replicate: --trust-dest-digest detects size mismatches" {
+  local source_dir="$TEST_TEMP_DIR/source"
+  local dest_dir="$TEST_TEMP_DIR/dest"
+  local source_digest="$TEST_TEMP_DIR/source.db"
+  local dest_digest="$TEST_TEMP_DIR/dest.db"
+  
+  create_test_file "$source_dir/test.txt" "original content"
+  mkdir -p "$dest_dir"
+  
+  # Create source digest
+  run file-sentinel digest -i "$source_dir::$source_digest" --no-tty
+  [ "$status" -eq 0 ]
+  
+  # First replication
+  run file-sentinel replicate \
+    -i "$source_dir::$source_digest" \
+    -o "$dest_dir::$dest_digest" \
+    --no-tty
+  [ "$status" -eq 0 ]
+  
+  # Change file size in destination (but keep same hash in digest)
+  echo "different size content here" > "$dest_dir/test.txt"
+  
+  # Replicate with --trust-dest-digest - should detect size mismatch and copy
+  run file-sentinel replicate \
+    -i "$source_dir::$source_digest" \
+    -o "$dest_dir::$dest_digest" \
+    --trust-dest-digest \
+    --no-tty
+  [ "$status" -eq 0 ]
+  
+  # File should be restored to original content
+  [ "$(cat "$dest_dir/test.txt")" = "original content" ]
+}
+
+@test "replicate: --trust-dest-digest skips hash check for corrupted files with matching size" {
+  local source_dir="$TEST_TEMP_DIR/source"
+  local dest_dir="$TEST_TEMP_DIR/dest"
+  local source_digest="$TEST_TEMP_DIR/source.db"
+  local dest_digest="$TEST_TEMP_DIR/dest.db"
+  
+  # Create a file with specific content (long enough to make corruption obvious)
+  local original_content="test content for hash verification - this is a longer string to ensure size matching works correctly"
+  create_test_file "$source_dir/test.txt" "$original_content"
+  mkdir -p "$dest_dir"
+  
+  # Create source digest
+  run file-sentinel digest -i "$source_dir::$source_digest" --no-tty
+  [ "$status" -eq 0 ]
+  
+  # First replication
+  run file-sentinel replicate \
+    -i "$source_dir::$source_digest" \
+    -o "$dest_dir::$dest_digest" \
+    --no-tty
+  [ "$status" -eq 0 ]
+  
+  # Corrupt file but keep same size (hash will be different)
+  # Replace all characters with 'x' to maintain same length
+  local original_size=$(stat -f%z "$dest_dir/test.txt" 2>/dev/null || stat -c%s "$dest_dir/test.txt")
+  # Create corrupted content of same size
+  if command -v head >/dev/null 2>&1 && head -c 1 /dev/null >/dev/null 2>&1; then
+    # Use head -c if available (GNU coreutils)
+    yes "x" | head -c "$original_size" > "$dest_dir/test.txt"
+  else
+    # Fallback: use sed to replace each character, maintaining length
+    sed 's/./x/g' "$dest_dir/test.txt" > "$dest_dir/test.txt.tmp" && mv "$dest_dir/test.txt.tmp" "$dest_dir/test.txt"
+  fi
+  
+  # Verify size is still the same
+  local new_size=$(stat -f%z "$dest_dir/test.txt" 2>/dev/null || stat -c%s "$dest_dir/test.txt")
+  [ "$original_size" -eq "$new_size" ]
+  
+  # Replicate with --trust-dest-digest - should skip hash check
+  run file-sentinel replicate \
+    -i "$source_dir::$source_digest" \
+    -o "$dest_dir::$dest_digest" \
+    --trust-dest-digest \
+    --no-tty
+  [ "$status" -eq 0 ]
+  
+  # File should still be corrupted (hash check was skipped)
+  local current_content=$(cat "$dest_dir/test.txt")
+  [ "$current_content" != "$original_content" ]
+  
+  # Now replicate without --trust-dest-digest - should detect hash mismatch
+  run file-sentinel replicate \
+    -i "$source_dir::$source_digest" \
+    -o "$dest_dir::$dest_digest" \
+    --no-tty
+  [ "$status" -eq 0 ]
+  
+  # File should be restored to original content
+  [ "$(cat "$dest_dir/test.txt")" = "$original_content" ]
+}
