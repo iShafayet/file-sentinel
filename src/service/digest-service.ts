@@ -8,6 +8,7 @@ import { progressService } from "./progress-service.js";
 import { errorService } from "./error-service.js";
 import { isFileWritable } from "../utility/file-utils.js";
 import { shouldSkipFileByRecency } from "../utility/misc-utils.js";
+import constants from "../constant/common-constants.js";
 import path from "path";
 import fs from "fs";
 
@@ -93,113 +94,140 @@ class DigestService {
       // Process each discovered file
       logger.log("(digest-service)> Processing files...");
 
-      if (!config.dryRun && db.isOpen()) {
-        db.beginTransaction();
-      }
+      let filesProcessedInBatch = 0;
+      const batchCommitSize = constants.DB_BATCH_COMMIT_SIZE;
+      let transactionActive = false;
 
-      try {
-        for (let i = 0; i < discoveredFiles.length; i++) {
-          const relativePath = discoveredFiles[i];
+      for (let i = 0; i < discoveredFiles.length; i++) {
+        const relativePath = discoveredFiles[i];
 
-          // Check recency threshold
-          const existingFile = existingFileMap.get(relativePath);
-          if (
-            existingFile &&
-            shouldSkipFileByRecency(existingFile.last_attempted_at, config.recencyThreshold, relativePath, logger)
-          ) {
-            continue;
-          }
-
-          // Update progress display
-          progressService.updateTaskProgress(i, discoveredFiles.length, "Processing files");
-          progressService.updateFileProgress(0, 100, relativePath);
-          progressService.updateStats();
-
-          if (config.verbose && i % 100 === 0) {
-            logger.log(`(digest-service)> Progress: ${i}/${discoveredFiles.length} files processed`);
-          }
-
-          try {
-            const status = await this.processFile(
-              relativePath,
-              config.inputDir,
-              config.hashAlgorithm,
-              db,
-              existingFileMap,
-              config.dryRun,
-            );
-
-            switch (status) {
-              case "added":
-                progressService.incrementFilesAdded();
-                logger.debug(`(digest-service)> Added: ${relativePath}`);
-                break;
-              case "updated":
-                progressService.incrementFilesUpdated();
-                logger.debug(`(digest-service)> Updated: ${relativePath}`);
-                break;
-              case "unchanged":
-                progressService.incrementFilesUnchanged();
-                logger.debug(`(digest-service)> Unchanged: ${relativePath}`);
-                break;
-            }
-
-            progressService.incrementTotalFilesProcessed();
-
-            // Update file completion
-            progressService.updateFileProgress(100, 100, relativePath);
-          } catch (error) {
-            logger.logNegative(`(digest-service)> Error processing file: ${relativePath}`);
-            progressService.addError(`Failed to process ${relativePath}: ${(error as Error).message}`);
-            errorService.handleError(error);
-
-            if (config.panicOnError) {
-              throw error;
-            }
-          }
+        // Check recency threshold
+        const existingFile = existingFileMap.get(relativePath);
+        if (
+          existingFile &&
+          shouldSkipFileByRecency(existingFile.last_attempted_at, config.recencyThreshold, relativePath, logger)
+        ) {
+          continue;
         }
 
-        // Remove entries for files that no longer exist
-        if (!config.dryRun && db.isOpen()) {
-          const discoveredSet = new Set(discoveredFiles);
-          for (const [relativePath] of existingFileMap) {
-            if (!discoveredSet.has(relativePath)) {
-              db.deleteFile(relativePath);
-              progressService.incrementFilesDeleted();
-              if (config.verbose) {
-                logger.log(`(digest-service)> Deleted entry: ${relativePath}`);
+        // Start transaction if needed
+        if (!config.dryRun && db.isOpen() && !transactionActive) {
+          db.beginTransaction();
+          transactionActive = true;
+        }
+
+        // Update progress display
+        progressService.updateTaskProgress(i, discoveredFiles.length, "Processing files");
+        progressService.updateFileProgress(0, 100, relativePath);
+        progressService.updateStats();
+
+        if (config.verbose && i % 100 === 0) {
+          logger.log(`(digest-service)> Progress: ${i}/${discoveredFiles.length} files processed`);
+        }
+
+        try {
+          const status = await this.processFile(
+            relativePath,
+            config.inputDir,
+            config.hashAlgorithm,
+            db,
+            existingFileMap,
+            config.dryRun,
+          );
+
+          switch (status) {
+            case "added":
+              progressService.incrementFilesAdded();
+              logger.debug(`(digest-service)> Added: ${relativePath}`);
+              break;
+            case "updated":
+              progressService.incrementFilesUpdated();
+              logger.debug(`(digest-service)> Updated: ${relativePath}`);
+              break;
+            case "unchanged":
+              progressService.incrementFilesUnchanged();
+              logger.debug(`(digest-service)> Unchanged: ${relativePath}`);
+              break;
+          }
+
+          progressService.incrementTotalFilesProcessed();
+          filesProcessedInBatch++;
+
+          // Update file completion
+          progressService.updateFileProgress(100, 100, relativePath);
+
+          // Commit batch if we've processed enough files
+          if (!config.dryRun && db.isOpen() && transactionActive && filesProcessedInBatch >= batchCommitSize) {
+            db.commitTransaction();
+            transactionActive = false;
+            filesProcessedInBatch = 0;
+          }
+        } catch (error) {
+          logger.logNegative(`(digest-service)> Error processing file: ${relativePath}`);
+          progressService.addError(`Failed to process ${relativePath}: ${(error as Error).message}`);
+          errorService.handleError(error);
+
+          if (config.panicOnError) {
+            // Commit current batch before throwing
+            if (!config.dryRun && db.isOpen() && transactionActive) {
+              try {
+                db.commitTransaction();
+                transactionActive = false;
+                filesProcessedInBatch = 0;
+              } catch (commitError) {
+                logger.logNegative(`(digest-service)> Error committing batch: ${(commitError as Error).message}`);
               }
             }
+            throw error;
           }
         }
-
-        // Update summary
-        if (!config.dryRun && db.isOpen()) {
-          const now = Date.now();
-          const existingSummary = db.getSummary();
-          const result = progressService.getExecutionResult();
-
-          if (result) {
-            db.upsertSummary({
-              total_files: discoveredFiles.length,
-              total_size: result.totalBytesProcessed,
-              created_at: existingSummary?.created_at || now,
-              modified_at: now,
-            });
-          }
-        }
-
-        if (!config.dryRun && db.isOpen()) {
-          db.commitTransaction();
-        }
-
-        progressService.completeExecution(true);
-      } catch (error) {
-        if (!config.dryRun && db.isOpen()) {
-          db.rollbackTransaction();
-        }
-        throw error;
       }
+
+      // Commit any remaining files in the current batch
+      if (!config.dryRun && db.isOpen() && transactionActive) {
+        db.commitTransaction();
+        transactionActive = false;
+      }
+
+      // Remove entries for files that no longer exist
+      if (!config.dryRun && db.isOpen()) {
+        db.beginTransaction();
+        transactionActive = true;
+        const discoveredSet = new Set(discoveredFiles);
+        for (const [relativePath] of existingFileMap) {
+          if (!discoveredSet.has(relativePath)) {
+            db.deleteFile(relativePath);
+            progressService.incrementFilesDeleted();
+            if (config.verbose) {
+              logger.log(`(digest-service)> Deleted entry: ${relativePath}`);
+            }
+          }
+        }
+        db.commitTransaction();
+        transactionActive = false;
+      }
+
+      // Update summary
+      if (!config.dryRun && db.isOpen()) {
+        db.beginTransaction();
+        transactionActive = true;
+        const now = Date.now();
+        const existingSummary = db.getSummary();
+        const result = progressService.getExecutionResult();
+
+        if (result) {
+          db.upsertSummary({
+            total_files: discoveredFiles.length,
+            total_size: result.totalBytesProcessed,
+            created_at: existingSummary?.created_at || now,
+            modified_at: now,
+          });
+        }
+        db.commitTransaction();
+        transactionActive = false;
+      }
+
+      progressService.completeExecution(true);
 
       // Complete operation log
       const result = progressService.getExecutionResult();

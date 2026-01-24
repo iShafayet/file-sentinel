@@ -10,6 +10,7 @@ import { joinPath } from "../utility/path-utils.js";
 import { getFileSystemErrorMessage } from "../utility/error-utils.js";
 import { isFileWritable } from "../utility/file-utils.js";
 import { shouldSkipFileByRecency } from "../utility/misc-utils.js";
+import constants from "../constant/common-constants.js";
 import path from "path";
 import fs from "fs";
 import { promises as fsPromises } from "fs";
@@ -73,6 +74,10 @@ class HealService {
       // Heal each file
       logger.log("(heal-service)> Healing files...");
 
+      let filesProcessedInBatch = 0;
+      const batchCommitSize = constants.DB_BATCH_COMMIT_SIZE;
+      let transactionActive = false;
+
       for (let i = 0; i < digestFiles.length; i++) {
         const digestFile = digestFiles[i];
         const relativePath = digestFile.relative_path;
@@ -80,6 +85,12 @@ class HealService {
         // Check recency threshold
         if (shouldSkipFileByRecency(digestFile.last_attempted_at, config.recencyThreshold, relativePath, logger)) {
           continue;
+        }
+
+        // Start transaction if needed
+        if (!config.dryRun && db.isOpen() && !transactionActive) {
+          db.beginTransaction();
+          transactionActive = true;
         }
 
         // Update progress display
@@ -132,19 +143,44 @@ class HealService {
 
           progressService.updateFileProgress(100, 100, relativePath);
           progressService.incrementTotalFilesProcessed();
+          filesProcessedInBatch++;
+
+          // Commit batch if we've processed enough files
+          if (!config.dryRun && db.isOpen() && transactionActive && filesProcessedInBatch >= batchCommitSize) {
+            db.commitTransaction();
+            transactionActive = false;
+            filesProcessedInBatch = 0;
+          }
         } catch (error) {
           logger.logNegative(`(heal-service)> Error healing file: ${relativePath}`);
           const errorMsg = `Error: ${(error as Error).message}`;
           progressService.addError(`Error healing ${relativePath}: ${(error as Error).message}`);
           if (!config.dryRun && db.isOpen()) {
             db.updateFileAttempt(relativePath, errorMsg);
+            filesProcessedInBatch++;
           }
           errorService.handleError(error);
 
           if (config.panicOnError) {
+            // Commit current batch before throwing
+            if (!config.dryRun && db.isOpen() && transactionActive) {
+              try {
+                db.commitTransaction();
+                transactionActive = false;
+                filesProcessedInBatch = 0;
+              } catch (commitError) {
+                logger.logNegative(`(heal-service)> Error committing batch: ${(commitError as Error).message}`);
+              }
+            }
             throw error;
           }
         }
+      }
+
+      // Commit any remaining files in the current batch
+      if (!config.dryRun && db.isOpen() && transactionActive) {
+        db.commitTransaction();
+        transactionActive = false;
       }
 
       // Complete operation
