@@ -172,9 +172,8 @@ class ReplicateService {
                   modified_at: sourceFile.modified_at,
                   hash_sha256: sourceFile.hash_sha256,
                   last_attempted_at: Date.now(),
-                  last_attempt_result: null,
+                  last_attempt_result: "success",
                 });
-                destDb.updateFileAttempt(relativePath, "success");
               }
 
               logger.debug(`(replicate-service)> Copied: ${relativePath}`);
