@@ -29,14 +29,28 @@ class FileService {
         let finished = false;
 
         readStream.on("data", (chunk: Buffer) => {
-          writeStream.write(chunk);
           totalBytesRead += chunk.length;
+          
+          // Handle backpressure: if write() returns false, the stream's buffer is full
+          // Pause reading until the 'drain' event is emitted
+          const canContinue = writeStream.write(chunk);
+          if (!canContinue) {
+            readStream.pause();
+          }
+
           if (Date.now() - lastProgressLogTime >= constants.PROGRESS_LOG_INTERVAL_MS) {
             lastProgressLogTime = Date.now();
             updateProgressFn(totalBytesRead, totalBytes);
           }
         });
+
+        // Resume reading when the write stream's buffer is drained
+        writeStream.on("drain", () => {
+          readStream.resume();
+        });
+
         readStream.on("end", () => {
+          // End the write stream after all data has been written
           writeStream.end();
           updateProgressFn(totalBytesRead, totalBytes);
         });
