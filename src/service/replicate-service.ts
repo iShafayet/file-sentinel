@@ -25,7 +25,7 @@ class ReplicateService {
    */
   async execute(config: ReplicateConfig): Promise<ExecutionResult> {
     // Enable buffering and start display (creates ExecutionResult)
-    logger.enableBuffering();
+    logger.enableBufferingIfTty();
     progressService.start(config);
 
     logger.log("=".repeat(80));

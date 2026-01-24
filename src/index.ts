@@ -61,7 +61,7 @@ export class FileSentinelProgram {
     logger.log("(program)> Command execution complete");
 
     // After operation completes, wait for keypress to show logs
-    await progressService.stopDisplayAndShowLogs({ waitForKeyPress: true });
+    await progressService.stopDisplayIfActiveAndShowLogsIfBuffered({ waitForKeyPress: true });
 
     return result;
   }

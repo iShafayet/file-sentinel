@@ -22,7 +22,7 @@ class VerifyService {
    */
   async execute(config: VerifyConfig): Promise<ExecutionResult> {
     // Enable buffering and start display (creates ExecutionResult)
-    logger.enableBuffering();
+    logger.enableBufferingIfTty();
     progressService.start(config);
 
     logger.log("=".repeat(80));
@@ -46,8 +46,8 @@ class VerifyService {
       if (!isFileWritable(config.digestFile)) {
         throw new Error(
           `Digest file is read-only or cannot be written: ${config.digestFile}. ` +
-          `Verify operation requires write access to log operations. ` +
-          `Please check file permissions (use chmod to make it writable if needed).`
+            `Verify operation requires write access to log operations. ` +
+            `Please check file permissions (use chmod to make it writable if needed).`,
         );
       }
 
@@ -67,7 +67,7 @@ class VerifyService {
         config.subdirectory,
         (fileCount, currentDir) => {
           progressService.updateDiscoveryProgress(fileCount, currentDir);
-        }
+        },
       );
       progressService.stopDiscovery();
       logger.log(`(verify-service)> Discovered ${discoveredFiles.length} files on disk`);
@@ -120,7 +120,7 @@ class VerifyService {
             fullPath,
             digestFile.hash_sha256,
             digestFile.size,
-            config.hashAlgorithm
+            config.hashAlgorithm,
           );
 
           if (verifyResult.success) {
@@ -190,14 +190,15 @@ class VerifyService {
       progressService.logExecutionResult(config.verbose);
     } catch (error) {
       logger.logNegative("(verify-service)> Verify operation failed");
-      
+
       // Check for SQLITE_READONLY errors and provide clearer message
       let errorMessage = (error as Error).message;
       if ((error as any).code === "SQLITE_READONLY" || errorMessage.includes("readonly database")) {
-        errorMessage = `Digest file is read-only: ${config.digestFile}. ` +
+        errorMessage =
+          `Digest file is read-only: ${config.digestFile}. ` +
           `Cannot write to the database. Please check file permissions (use chmod to make it writable if needed).`;
       }
-      
+
       progressService.addError(`Verify failed: ${errorMessage}`);
       progressService.completeExecution(false);
       errorService.handleError(error);
@@ -229,7 +230,7 @@ class VerifyService {
     filePath: string,
     expectedHash: string,
     expectedSize: number,
-    hashAlgorithm: "sha256"
+    hashAlgorithm: "sha256",
   ): Promise<{ success: boolean; reason?: string }> {
     try {
       // Check file exists

@@ -17,7 +17,7 @@ class CompareService {
    */
   async execute(config: CompareConfig): Promise<ExecutionResult> {
     // Enable buffering and start display (creates ExecutionResult)
-    logger.enableBuffering();
+    logger.enableBufferingIfTty();
     progressService.start(config);
 
     logger.log("=".repeat(80));
@@ -143,7 +143,7 @@ class CompareService {
   private compareReplicate(
     localMap: Map<string, FileRow>,
     remoteMap: Map<string, FileRow>,
-    config: CompareConfig
+    config: CompareConfig,
   ): void {
     const newFiles: string[] = [];
     const changedFiles: string[] = [];
@@ -167,8 +167,8 @@ class CompareService {
             logger.log(
               `(compare-service)> To be updated: ${path} (local: ${localFile.hash_sha256.substring(
                 0,
-                8
-              )}..., remote: ${remoteFile.hash_sha256.substring(0, 8)}...)`
+                8,
+              )}..., remote: ${remoteFile.hash_sha256.substring(0, 8)}...)`,
             );
           }
         }
