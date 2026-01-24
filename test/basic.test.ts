@@ -255,6 +255,7 @@ describe("Basic Replicate Tests - v2", (): void => {
       mirrors: [],
       permaDelete: false,
       validatePostCopy: true,
+      trustDestDigest: false,
       hashAlgorithm: "sha256",
       verbose: true,
       panicOnError: true,
@@ -277,6 +278,188 @@ describe("Basic Replicate Tests - v2", (): void => {
       const destFilePath = join(destDir, file.path);
       expect(existsSync(destFilePath)).toBe(true);
     }
+  });
+
+  test("replicate with trustDestDigest false should verify file existence, size, and hash", async (): Promise<void> => {
+    const sourceDir = getTestDirPath("set2");
+    const sourceDigestFile = getDigestFilePath("set2");
+    const destDir = getTestDirPath("set2-trust-test");
+    const destDigestFile = getDigestFilePath("set2-trust-test");
+
+    // First replication to create destination
+    const firstConfig: ReplicateConfig = {
+      command: "replicate",
+      sourceDir: sourceDir,
+      sourceDigestFile: sourceDigestFile,
+      destDir: destDir,
+      destDigestFile: destDigestFile,
+      subdirectory: null,
+      mirrors: [],
+      permaDelete: false,
+      validatePostCopy: true,
+      trustDestDigest: false,
+      hashAlgorithm: "sha256",
+      verbose: false,
+      panicOnError: true,
+      recencyThreshold: 0,
+      dryRun: false,
+      noTty: true,
+      ioTimeout: 30,
+    };
+
+    const fileSentinel1 = new FileSentinelProgram();
+    const firstResult = await fileSentinel1.execute(firstConfig);
+    await fileSentinel1.terminate();
+
+    expect(firstResult.success).toBe(true);
+    expect(firstResult.filesCopied).toBe(sourceFiles.length);
+
+    // Second replication with trustDestDigest: false - should verify file existence, size, and hash
+    const secondConfig: ReplicateConfig = {
+      ...firstConfig,
+      trustDestDigest: false,
+    };
+
+    const fileSentinel2 = new FileSentinelProgram();
+    const secondResult = await fileSentinel2.execute(secondConfig);
+    await fileSentinel2.terminate();
+
+    expect(secondResult.success).toBe(true);
+    // Files already exist, so none should be copied
+    expect(secondResult.filesCopied).toBe(0);
+  });
+
+  test("replicate with trustDestDigest true should skip hash check but verify file existence and size", async (): Promise<void> => {
+    const sourceDir = getTestDirPath("set2");
+    const sourceDigestFile = getDigestFilePath("set2");
+    const destDir = getTestDirPath("set2-trust-skip");
+    const destDigestFile = getDigestFilePath("set2-trust-skip");
+
+    // First replication to create destination
+    const firstConfig: ReplicateConfig = {
+      command: "replicate",
+      sourceDir: sourceDir,
+      sourceDigestFile: sourceDigestFile,
+      destDir: destDir,
+      destDigestFile: destDigestFile,
+      subdirectory: null,
+      mirrors: [],
+      permaDelete: false,
+      validatePostCopy: true,
+      trustDestDigest: false,
+      hashAlgorithm: "sha256",
+      verbose: false,
+      panicOnError: true,
+      recencyThreshold: 0,
+      dryRun: false,
+      noTty: true,
+      ioTimeout: 30,
+    };
+
+    const fileSentinel1 = new FileSentinelProgram();
+    const firstResult = await fileSentinel1.execute(firstConfig);
+    await fileSentinel1.terminate();
+
+    expect(firstResult.success).toBe(true);
+    expect(firstResult.filesCopied).toBe(sourceFiles.length);
+
+    // Second replication with trustDestDigest: true - should skip hash check but verify file existence and size
+    const secondConfig: ReplicateConfig = {
+      ...firstConfig,
+      trustDestDigest: true,
+    };
+
+    const fileSentinel2 = new FileSentinelProgram();
+    const secondResult = await fileSentinel2.execute(secondConfig);
+    await fileSentinel2.terminate();
+
+    expect(secondResult.success).toBe(true);
+    // Files already exist in digest, so none should be copied
+    expect(secondResult.filesCopied).toBe(0);
+  });
+
+  test("replicate with trustDestDigest true should skip hash check but detect size mismatches", async (): Promise<void> => {
+    const sourceDir = getTestDirPath("set2");
+    const sourceDigestFile = getDigestFilePath("set2");
+    const destDir = getTestDirPath("set2-trust-corrupt");
+    const destDigestFile = getDigestFilePath("set2-trust-corrupt");
+
+    // First replication to create destination
+    const firstConfig: ReplicateConfig = {
+      command: "replicate",
+      sourceDir: sourceDir,
+      sourceDigestFile: sourceDigestFile,
+      destDir: destDir,
+      destDigestFile: destDigestFile,
+      subdirectory: null,
+      mirrors: [],
+      permaDelete: false,
+      validatePostCopy: true,
+      trustDestDigest: false,
+      hashAlgorithm: "sha256",
+      verbose: false,
+      panicOnError: false, // Don't panic so we can test behavior
+      recencyThreshold: 0,
+      dryRun: false,
+      noTty: true,
+      ioTimeout: 30,
+    };
+
+    const fileSentinel1 = new FileSentinelProgram();
+    const firstResult = await fileSentinel1.execute(firstConfig);
+    await fileSentinel1.terminate();
+
+    expect(firstResult.success).toBe(true);
+    expect(firstResult.filesCopied).toBe(sourceFiles.length);
+
+    // Corrupt a file in destination but keep the same size (hash will be different)
+    const firstFile = sourceFiles[0];
+    const corruptedFilePath = join(destDir, firstFile.path);
+    const originalContent = readFileSync(corruptedFilePath, "utf8");
+    // Write different content but same size
+    const corruptedContent = "x".repeat(originalContent.length);
+    writeFileSync(corruptedFilePath, corruptedContent);
+
+    // Replicate with trustDestDigest: true - should skip hash check but file exists and size matches, so it skips
+    const secondConfig: ReplicateConfig = {
+      ...firstConfig,
+      trustDestDigest: true,
+    };
+
+    const fileSentinel2 = new FileSentinelProgram();
+    const secondResult = await fileSentinel2.execute(secondConfig);
+    await fileSentinel2.terminate();
+
+    // Should succeed because it trusts the digest (skips hash check, file exists and size matches)
+    expect(secondResult.success).toBe(true);
+    expect(secondResult.filesCopied).toBe(0);
+
+    // Now change the file size - should detect it even with trustDestDigest: true
+    writeFileSync(corruptedFilePath, "different size content");
+
+    const fileSentinel3 = new FileSentinelProgram();
+    const thirdResult = await fileSentinel3.execute(secondConfig);
+    await fileSentinel3.terminate();
+
+    // Should detect size mismatch and copy the file again
+    expect(thirdResult.success).toBe(true);
+    expect(thirdResult.filesCopied).toBe(1); // Should copy the file with wrong size
+
+    // Now replicate with trustDestDigest: false - should detect hash mismatch even if size matches
+    writeFileSync(corruptedFilePath, corruptedContent); // Restore same size but wrong hash (different from original)
+
+    const fourthConfig: ReplicateConfig = {
+      ...firstConfig,
+      trustDestDigest: false,
+    };
+
+    const fileSentinel4 = new FileSentinelProgram();
+    const fourthResult = await fileSentinel4.execute(fourthConfig);
+    await fileSentinel4.terminate();
+
+    // Should detect hash mismatch and copy the file again
+    expect(fourthResult.success).toBe(true);
+    expect(fourthResult.filesCopied).toBe(1); // Should copy the corrupted file (hash mismatch)
   });
 });
 

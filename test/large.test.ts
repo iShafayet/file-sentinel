@@ -88,6 +88,7 @@ describe("Large File Tests - v2", (): void => {
       mirrors: [],
       permaDelete: false,
       validatePostCopy: true,
+      trustDestDigest: false,
       hashAlgorithm: "sha256",
       verbose: true,
       panicOnError: true,

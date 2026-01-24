@@ -133,6 +133,7 @@ export function parseArgs(argv?: string[]): Config {
     .option("--perma-delete", "Permanently delete instead of recycle", false)
     .option("--validate-post-copy", "Validate copied files after replication (default: enabled)", true)
     .option("--no-validate-post-copy", "Disable validation of copied files after replication", false)
+    .option("--trust-dest-digest", "Trust destination digest and skip on-disk hash verification for existing files", false)
     .option("-a, --hash-algorithm <algo>", "Hash algorithm", "sha256")
     .option("--verbose", "Verbose output", false)
     .option("--panic-on-error", "Exit on first error", false)
@@ -154,6 +155,7 @@ export function parseArgs(argv?: string[]): Config {
         mirrors: options.mirror,
         permaDelete: options.permaDelete,
         validatePostCopy: options.validatePostCopy ?? true, // Default to true
+        trustDestDigest: options.trustDestDigest ?? false,
         hashAlgorithm: options.hashAlgorithm as "sha256",
         verbose: options.verbose,
         panicOnError: options.panicOnError,

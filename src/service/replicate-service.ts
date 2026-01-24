@@ -57,8 +57,8 @@ class ReplicateService {
       if (!isFileWritable(config.sourceDigestFile)) {
         throw new Error(
           `Source digest file is read-only or cannot be written: ${config.sourceDigestFile}. ` +
-          `Replicate operation requires write access to log operations. ` +
-          `Please check file permissions (use chmod to make it writable if needed).`
+            `Replicate operation requires write access to log operations. ` +
+            `Please check file permissions (use chmod to make it writable if needed).`,
         );
       }
 
@@ -78,8 +78,8 @@ class ReplicateService {
         if (!isFileWritable(config.destDigestFile)) {
           throw new Error(
             `Destination digest file is read-only or cannot be written: ${config.destDigestFile}. ` +
-            `Replicate operation requires write access to update the destination digest. ` +
-            `Please check file permissions (use chmod to make it writable if needed).`
+              `Replicate operation requires write access to update the destination digest. ` +
+              `Please check file permissions (use chmod to make it writable if needed).`,
           );
         }
 
@@ -124,7 +124,10 @@ class ReplicateService {
           // Check recency threshold (check destination file if it exists)
           if (!config.dryRun && destDb.isOpen()) {
             const destFile = destDb.getFile(relativePath);
-            if (destFile && shouldSkipFileByRecency(destFile.last_attempted_at, config.recencyThreshold, relativePath, logger)) {
+            if (
+              destFile &&
+              shouldSkipFileByRecency(destFile.last_attempted_at, config.recencyThreshold, relativePath, logger)
+            ) {
               continue;
             }
           }
@@ -145,29 +148,36 @@ class ReplicateService {
               sourceFile.size,
               config,
               destFileMap,
-              recycleUtility
+              recycleUtility,
             );
 
             if (replicateResult.success) {
-              progressService.incrementFilesCopied();
-              progressService.addBytesProcessed(sourceFile.size);
-              progressService.updateFileProgress(100, 100, relativePath);
+              // Only increment filesCopied if file was actually copied
+              if (replicateResult.copied) {
+                progressService.incrementFilesCopied();
+                progressService.addBytesProcessed(sourceFile.size);
+                progressService.updateFileProgress(100, 100, relativePath);
 
-              // Update destination digest
-              if (!config.dryRun && destDb.isOpen()) {
-                destDb.upsertFile({
-                  relative_path: relativePath,
-                  size: sourceFile.size,
-                  created_at: sourceFile.created_at,
-                  modified_at: sourceFile.modified_at,
-                  hash_sha256: sourceFile.hash_sha256,
-                  last_attempted_at: Date.now(),
-                  last_attempt_result: null,
-                });
-                destDb.updateFileAttempt(relativePath, "success");
+                // Update destination digest
+                if (!config.dryRun && destDb.isOpen()) {
+                  destDb.upsertFile({
+                    relative_path: relativePath,
+                    size: sourceFile.size,
+                    created_at: sourceFile.created_at,
+                    modified_at: sourceFile.modified_at,
+                    hash_sha256: sourceFile.hash_sha256,
+                    last_attempted_at: Date.now(),
+                    last_attempt_result: null,
+                  });
+                  destDb.updateFileAttempt(relativePath, "success");
+                }
+
+                logger.debug(`(replicate-service)> Copied: ${relativePath}`);
+              } else {
+                // File was skipped (already exists and matches)
+                progressService.updateFileProgress(100, 100, relativePath);
+                logger.debug(`(replicate-service)> Skipped: ${relativePath} (already exists)`);
               }
-
-              logger.debug(`(replicate-service)> Copied: ${relativePath}`);
             } else {
               progressService.incrementFilesRecoveryFailed();
               const errorMsg = `Failed: ${replicateResult.reason}`;
@@ -271,7 +281,7 @@ class ReplicateService {
       progressService.logExecutionResult(config.verbose);
     } catch (error) {
       logger.logNegative("(replicate-service)> Replicate operation failed");
-      
+
       // Check for SQLITE_READONLY errors and provide clearer message
       let errorMessage = (error as Error).message;
       if ((error as any).code === "SQLITE_READONLY" || errorMessage.includes("readonly database")) {
@@ -279,17 +289,20 @@ class ReplicateService {
         const sourcePath = config.sourceDigestFile;
         const destPath = config.destDigestFile;
         if (errorMessage.includes("source") || errorMessage.includes(sourcePath)) {
-          errorMessage = `Source digest file is read-only: ${sourcePath}. ` +
+          errorMessage =
+            `Source digest file is read-only: ${sourcePath}. ` +
             `Cannot write to the database. Please check file permissions (use chmod to make it writable if needed).`;
         } else if (errorMessage.includes("destination") || errorMessage.includes(destPath)) {
-          errorMessage = `Destination digest file is read-only: ${destPath}. ` +
+          errorMessage =
+            `Destination digest file is read-only: ${destPath}. ` +
             `Cannot write to the database. Please check file permissions (use chmod to make it writable if needed).`;
         } else {
-          errorMessage = `Digest file is read-only. ` +
+          errorMessage =
+            `Digest file is read-only. ` +
             `Cannot write to the database. Please check file permissions (use chmod to make it writable if needed).`;
         }
       }
-      
+
       progressService.addError(`Replicate failed: ${errorMessage}`);
       progressService.completeExecution(false);
       errorService.handleError(error);
@@ -329,8 +342,8 @@ class ReplicateService {
     expectedSize: number,
     config: ReplicateConfig,
     destFileMap: Map<string, { hash: string; size: number }>,
-    recycleUtility: RecycleUtility
-  ): Promise<{ success: boolean; reason?: string }> {
+    recycleUtility: RecycleUtility,
+  ): Promise<{ success: boolean; copied?: boolean; reason?: string }> {
     const destPath = joinPath(config.destDir, relativePath);
 
     // Check if destination already has correct file
@@ -340,13 +353,18 @@ class ReplicateService {
       if (fs.existsSync(destPath)) {
         const destStats = fs.statSync(destPath);
         if (destStats.size === expectedSize) {
+          if (config.trustDestDigest) {
+            // Trust the digest, skip on-disk verification
+            return { success: true, copied: false };
+          }
+
           const destHash = await cryptoService.hashFile(destPath, config.hashAlgorithm, (bytesRead, total) => {
             const percentage = Math.floor((bytesRead / total) * 100);
             progressService.updateFileProgress(percentage, 100, `[Check] ${relativePath}`);
           });
           if (destHash === expectedHash) {
             // File already correct, skip
-            return { success: true };
+            return { success: true, copied: false };
           }
         }
       }
@@ -381,13 +399,13 @@ class ReplicateService {
         if (!config.dryRun) {
           // Ensure destination directory exists (WRITE operation - fail immediately on error)
           const destDir = path.dirname(destPath);
-          
+
           // Check for potentially problematic characters in path (e.g., colons on FAT32/exFAT)
           if (destDir.includes(":")) {
             // Colon detected - may fail on FAT32/exFAT filesystems
             logger.debug(`(replicate-service)> Warning: Path contains colon, may fail on FAT32/exFAT: ${destDir}`);
           }
-          
+
           try {
             await fsPromises.mkdir(destDir, { recursive: true });
           } catch (error) {
@@ -395,14 +413,14 @@ class ReplicateService {
             // Check if error might be due to invalid characters in filename
             let errorMsg = getFileSystemErrorMessage(
               err,
-              `Failed to create destination directory for file ${relativePath}: ${destDir}`
+              `Failed to create destination directory for file ${relativePath}: ${destDir}`,
             );
-            
+
             // If path contains colon and we got ENOENT, suggest filesystem limitation
             if (err.code === "ENOENT" && (destDir.includes(":") || relativePath.includes(":"))) {
               errorMsg += " (Note: Colons in filenames are not supported on FAT32/exFAT filesystems)";
             }
-            
+
             return { success: false, reason: errorMsg };
           }
 
@@ -436,7 +454,7 @@ class ReplicateService {
           }
         }
 
-        return { success: true };
+        return { success: true, copied: true };
       } catch (error) {
         // READ error from source - log and try next source
         const err = error as NodeJS.ErrnoException;

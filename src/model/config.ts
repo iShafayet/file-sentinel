@@ -51,6 +51,7 @@ export type ReplicateConfig = BaseConfig & {
   mirrors: Array<{ dir: string; digestFile: string }>;
   permaDelete: boolean;
   validatePostCopy: boolean;
+  trustDestDigest: boolean;
 };
 
 // Heal command config
@@ -120,6 +121,7 @@ export const ReplicateConfigSchema = Joi.object({
     .required(),
   permaDelete: Joi.boolean().required(),
   validatePostCopy: Joi.boolean().required(),
+  trustDestDigest: Joi.boolean().required(),
   ...baseConfigSchema,
 });
 
