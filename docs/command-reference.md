@@ -551,6 +551,61 @@ file-sentinel replicate \
 - Working with important or irreplaceable files
 - You want to catch any copy errors immediately
 
+#### --trust-dest-digest
+
+Trust the destination digest and skip on-disk hash verification for files that already exist in the destination digest with matching hash and size.
+
+```bash
+file-sentinel replicate \
+  -i ~/source::~/source.db \
+  -o ~/dest::~/dest.db \
+  --trust-dest-digest
+```
+
+**Default behavior**: When a file exists in the destination digest with matching hash and size, File Sentinel verifies the file on disk by:
+1. Checking that the file exists
+2. Verifying the file size matches
+3. Computing and comparing the file hash
+
+**With `--trust-dest-digest`**: File Sentinel skips step 3 (hash computation) but still performs steps 1 and 2 (existence and size checks).
+
+**Use `--trust-dest-digest` when**:
+
+- You trust the destination digest is accurate
+- Replicating to a destination that was previously verified
+- Performance is important and you want to avoid hashing large files
+- The destination is on slow storage (e.g., network drives) where hash computation is expensive
+- You're doing frequent incremental replications and most files are unchanged
+
+**Keep default behavior (without `--trust-dest-digest`) when**:
+
+- You suspect the destination digest might be inaccurate
+- Files on the destination might have been modified outside of File Sentinel
+- Data integrity is critical and you want full verification
+- You're replicating to a destination for the first time or after a long gap
+
+**Important notes**:
+
+- File existence and size are still verified even with `--trust-dest-digest`
+- Only the hash computation is skipped
+- If a file's size doesn't match, it will still be copied even with `--trust-dest-digest`
+- Hash mismatches (with matching size) will NOT be detected when using `--trust-dest-digest`
+
+**Example**: Speeding up incremental backups
+
+```bash
+# First replication - full verification
+file-sentinel replicate \
+  -i ~/Documents::~/docs.db \
+  -o /backup/Documents::/backup/docs.db
+
+# Subsequent replications - trust digest, skip hash check
+file-sentinel replicate \
+  -i ~/Documents::~/docs.db \
+  -o /backup/Documents::/backup/docs.db \
+  --trust-dest-digest
+```
+
 #### -a, --hash-algorithm <algorithm>
 
 Specify the hashing algorithm (default: sha256).
@@ -565,11 +620,13 @@ file-sentinel replicate \
 ### What It Does
 
 1. **Reads source digest** - Gets list of files to replicate
-2. **Checks source integrity** - Verifies each file before copying
-3. **Falls back to mirrors** - If source is corrupted, tries mirrors
-4. **Copies files** - To destination directory
-5. **Handles deletions** - Removes files not in source
-6. **Updates destination digest** - Creates or updates with new state
+2. **Reads destination digest** - Checks which files already exist in destination
+3. **Checks existing files** - For files in destination digest, verifies they exist on disk and match (size and optionally hash)
+4. **Checks source integrity** - Verifies each file before copying
+5. **Falls back to mirrors** - If source is corrupted, tries mirrors
+6. **Copies files** - Only files that don't exist or don't match are copied
+7. **Handles deletions** - Removes files not in source
+8. **Updates destination digest** - Creates or updates with new state
 
 ### Output
 
@@ -635,6 +692,15 @@ file-sentinel replicate \
   -i ~/Documents::~/docs.db \
   -o /backup/Documents::/backup/docs.db \
   --perma-delete
+```
+
+**Fast incremental replication with --trust-dest-digest**:
+
+```bash
+file-sentinel replicate \
+  -i ~/Documents::~/docs.db \
+  -o /backup/Documents::/backup/docs.db \
+  --trust-dest-digest
 ```
 
 ## heal Command

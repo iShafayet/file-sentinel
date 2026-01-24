@@ -116,6 +116,9 @@ File Sentinel operates through five main commands, each serving a specific purpo
 - Falls back to mirrors if source is corrupted
 - Creates digest for destination
 - Handles files that should be removed from destination
+- Skips files that already exist in destination (with optional hash verification)
+
+**Performance optimization**: Use `--trust-dest-digest` to skip hash verification for existing files, significantly speeding up incremental replications when you trust the destination digest.
 
 ### 4. Heal Command
 
