@@ -41,10 +41,36 @@ export class DatabaseService {
   }
 
   /**
-   * Closes the database connection
+   * Commits any pending transaction if one exists.
+   * Safe to call even if no transaction is active - will silently do nothing.
+   */
+  commitPendingTransaction(): void {
+    if (!this.db) {
+      return;
+    }
+
+    try {
+      // Try to commit any pending transaction
+      // SQLite will throw an error if no transaction is active, which we'll catch and ignore
+      this.db.exec("COMMIT");
+    } catch (error) {
+      // If there's no active transaction, SQLite returns an error
+      // This is expected and safe to ignore - it means there's nothing to commit
+      const errorMessage = (error as Error).message;
+      if (!errorMessage.includes("no transaction is active") && !errorMessage.includes("cannot commit")) {
+        // Only log unexpected errors
+        console.warn("(database-service)> Warning: Failed to commit pending transaction:", errorMessage);
+      }
+    }
+  }
+
+  /**
+   * Closes the database connection, committing any pending transaction first
    */
   close(): void {
     if (this.db) {
+      // Commit any pending transaction before closing to preserve progress
+      this.commitPendingTransaction();
       this.db.close();
       this.db = null;
       this.digestFilePath = null;
