@@ -98,6 +98,49 @@ file-sentinel digest -i ~/docs::~/docs.db --no-tty
 - No ANSI color codes in output
 - No interactive keypress prompts
 - Logs output immediately (not buffered)
+
+### --recency-threshold <seconds>
+
+Skip files that were processed within the specified time threshold (in seconds). Default: 0 (no threshold, process all files).
+
+```bash
+file-sentinel verify -i ~/docs::~/docs.db --recency-threshold 3600
+```
+
+**How it works**:
+
+- Files are tracked with `last_attempted_at` timestamp in the digest database
+- When a file is processed (digest, verify, replicate, or heal), its timestamp is updated
+- If `--recency-threshold` is set, files processed within that time window are skipped
+- Never-attempted files (timestamp = 0) are always processed
+- Skipped files are logged with a message showing how long ago they were processed
+
+**Use cases**:
+
+- **Resume interrupted operations** - Skip files already processed in a recent run
+- **Incremental processing** - Only process files that haven't been touched recently
+- **Avoid redundant work** - Prevent re-processing files that were just handled
+- **Progress preservation** - Continue from where you left off after interruptions
+
+**Examples**:
+
+```bash
+# Skip files processed in the last hour (3600 seconds)
+file-sentinel verify -i ~/docs::~/docs.db --recency-threshold 3600
+
+# Skip files processed in the last 30 minutes (1800 seconds)
+file-sentinel digest -i ~/docs::~/docs.db --recency-threshold 1800
+
+# Process all files (default behavior)
+file-sentinel verify -i ~/docs::~/docs.db --recency-threshold 0
+```
+
+**Behavior**:
+
+- Files are ordered by `last_attempted_at` ascending (never-attempted files first, then oldest attempted, then most recent)
+- When a file is skipped, you'll see: `Skipping file.txt - processed 2 minutes 30 seconds ago (within 300 second threshold)`
+- The database still returns all files; filtering happens in application code
+- This ensures progress is preserved even when operations are interrupted, prioritizing files that need attention
 - Clean, parseable text output
 
 **Use when**:
