@@ -203,7 +203,12 @@ class ReplicateService {
           }
         } catch (error) {
           logger.logNegative(`(replicate-service)> Error replicating file: ${relativePath}`);
+          const errorMsg = `Error: ${(error as Error).message}`;
           progressService.addError(`Error replicating ${relativePath}: ${(error as Error).message}`);
+          if (!config.dryRun && destDb.isOpen()) {
+            destDb.updateFileAttempt(relativePath, errorMsg);
+            filesProcessedInBatch++;
+          }
           errorService.handleError(error);
 
           if (config.panicOnError) {
