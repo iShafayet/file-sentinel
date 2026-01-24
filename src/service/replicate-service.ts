@@ -12,6 +12,7 @@ import { isInSubdirectory, joinPath } from "../utility/path-utils.js";
 import { getFileSystemErrorMessage } from "../utility/error-utils.js";
 import { isFileWritable } from "../utility/file-utils.js";
 import { shouldSkipFileByRecency } from "../utility/misc-utils.js";
+import constants from "../constant/common-constants.js";
 import path from "path";
 import fs from "fs";
 import { promises as fsPromises } from "fs";
@@ -108,163 +109,187 @@ class ReplicateService {
         logger.log(`(replicate-service)> Found ${destFileMap.size} files in destination digest`);
       }
 
-      // Start transaction for destination
-      if (!config.dryRun && destDb.isOpen()) {
-        destDb.beginTransaction();
-      }
+      // Replicate each source file
+      logger.log("(replicate-service)> Replicating files...");
 
-      try {
-        // Replicate each source file
-        logger.log("(replicate-service)> Replicating files...");
+      let filesProcessedInBatch = 0;
+      const batchCommitSize = constants.DB_BATCH_COMMIT_SIZE;
+      let transactionActive = false;
 
-        for (let i = 0; i < sourceFiles.length; i++) {
-          const sourceFile = sourceFiles[i];
-          const relativePath = sourceFile.relative_path;
+      for (let i = 0; i < sourceFiles.length; i++) {
+        const sourceFile = sourceFiles[i];
+        const relativePath = sourceFile.relative_path;
 
-          // Check recency threshold (check destination file if it exists)
-          if (!config.dryRun && destDb.isOpen()) {
-            const destFile = destDb.getFile(relativePath);
-            if (
-              destFile &&
-              shouldSkipFileByRecency(destFile.last_attempted_at, config.recencyThreshold, relativePath, logger)
-            ) {
-              continue;
-            }
+        // Check recency threshold (check destination file if it exists)
+        if (!config.dryRun && destDb.isOpen()) {
+          const destFile = destDb.getFile(relativePath);
+          if (
+            destFile &&
+            shouldSkipFileByRecency(destFile.last_attempted_at, config.recencyThreshold, relativePath, logger)
+          ) {
+            continue;
           }
+        }
 
-          // Update progress display
-          progressService.updateTaskProgress(i, sourceFiles.length, "Replicating files");
-          progressService.updateFileProgress(0, 100, relativePath);
-          progressService.updateStats();
+        // Start transaction if needed
+        if (!config.dryRun && destDb.isOpen() && !transactionActive) {
+          destDb.beginTransaction();
+          transactionActive = true;
+        }
 
-          if (config.verbose && i % 100 === 0) {
-            logger.log(`(replicate-service)> Progress: ${i}/${sourceFiles.length} files processed`);
-          }
+        // Update progress display
+        progressService.updateTaskProgress(i, sourceFiles.length, "Replicating files");
+        progressService.updateFileProgress(0, 100, relativePath);
+        progressService.updateStats();
 
-          try {
-            const replicateResult = await this.replicateFile(
-              relativePath,
-              sourceFile.hash_sha256,
-              sourceFile.size,
-              config,
-              destFileMap,
-              recycleUtility,
-            );
+        if (config.verbose && i % 100 === 0) {
+          logger.log(`(replicate-service)> Progress: ${i}/${sourceFiles.length} files processed`);
+        }
 
-            if (replicateResult.success) {
-              // Only increment filesCopied if file was actually copied
-              if (replicateResult.copied) {
-                progressService.incrementFilesCopied();
-                progressService.addBytesProcessed(sourceFile.size);
-                progressService.updateFileProgress(100, 100, relativePath);
+        try {
+          const replicateResult = await this.replicateFile(
+            relativePath,
+            sourceFile.hash_sha256,
+            sourceFile.size,
+            config,
+            destFileMap,
+            recycleUtility,
+          );
 
-                // Update destination digest
-                if (!config.dryRun && destDb.isOpen()) {
-                  destDb.upsertFile({
-                    relative_path: relativePath,
-                    size: sourceFile.size,
-                    created_at: sourceFile.created_at,
-                    modified_at: sourceFile.modified_at,
-                    hash_sha256: sourceFile.hash_sha256,
-                    last_attempted_at: Date.now(),
-                    last_attempt_result: null,
-                  });
-                  destDb.updateFileAttempt(relativePath, "success");
-                }
+          if (replicateResult.success) {
+            // Only increment filesCopied if file was actually copied
+            if (replicateResult.copied) {
+              progressService.incrementFilesCopied();
+              progressService.addBytesProcessed(sourceFile.size);
+              progressService.updateFileProgress(100, 100, relativePath);
 
-                logger.debug(`(replicate-service)> Copied: ${relativePath}`);
-              } else {
-                // File was skipped (already exists and matches)
-                progressService.updateFileProgress(100, 100, relativePath);
-                logger.debug(`(replicate-service)> Skipped: ${relativePath} (already exists)`);
-              }
-            } else {
-              progressService.incrementFilesRecoveryFailed();
-              const errorMsg = `Failed: ${replicateResult.reason}`;
-              progressService.addError(`Failed to replicate ${relativePath}: ${replicateResult.reason}`);
-              logger.logNegative(`(replicate-service)> Failed: ${relativePath} - ${replicateResult.reason}`);
+              // Update destination digest
               if (!config.dryRun && destDb.isOpen()) {
-                destDb.updateFileAttempt(relativePath, errorMsg);
+                destDb.upsertFile({
+                  relative_path: relativePath,
+                  size: sourceFile.size,
+                  created_at: sourceFile.created_at,
+                  modified_at: sourceFile.modified_at,
+                  hash_sha256: sourceFile.hash_sha256,
+                  last_attempted_at: Date.now(),
+                  last_attempt_result: null,
+                });
+                destDb.updateFileAttempt(relativePath, "success");
               }
 
-              if (config.panicOnError) {
-                throw new Error(`Replication failed: ${relativePath}`);
-              }
+              logger.debug(`(replicate-service)> Copied: ${relativePath}`);
+            } else {
+              // File was skipped (already exists and matches)
+              progressService.updateFileProgress(100, 100, relativePath);
+              logger.debug(`(replicate-service)> Skipped: ${relativePath} (already exists)`);
             }
-
-            progressService.incrementTotalFilesProcessed();
-          } catch (error) {
-            logger.logNegative(`(replicate-service)> Error replicating file: ${relativePath}`);
-            progressService.addError(`Error replicating ${relativePath}: ${(error as Error).message}`);
-            errorService.handleError(error);
+          } else {
+            progressService.incrementFilesRecoveryFailed();
+            const errorMsg = `Failed: ${replicateResult.reason}`;
+            progressService.addError(`Failed to replicate ${relativePath}: ${replicateResult.reason}`);
+            logger.logNegative(`(replicate-service)> Failed: ${relativePath} - ${replicateResult.reason}`);
+            if (!config.dryRun && destDb.isOpen()) {
+              destDb.updateFileAttempt(relativePath, errorMsg);
+            }
 
             if (config.panicOnError) {
-              throw error;
+              throw new Error(`Replication failed: ${relativePath}`);
             }
           }
-        }
 
-        // Handle deletions (files in dest but not in source)
-        if (!config.dryRun && destDb.isOpen()) {
-          const sourceFileSet = new Set(sourceFiles.map((f) => f.relative_path));
+          progressService.incrementTotalFilesProcessed();
+          filesProcessedInBatch++;
 
-          for (const [relativePath] of destFileMap) {
-            if (!sourceFileSet.has(relativePath)) {
-              const destFilePath = joinPath(config.destDir, relativePath);
+          // Commit batch if we've processed enough files
+          if (!config.dryRun && destDb.isOpen() && transactionActive && filesProcessedInBatch >= batchCommitSize) {
+            destDb.commitTransaction();
+            transactionActive = false;
+            filesProcessedInBatch = 0;
+          }
+        } catch (error) {
+          logger.logNegative(`(replicate-service)> Error replicating file: ${relativePath}`);
+          progressService.addError(`Error replicating ${relativePath}: ${(error as Error).message}`);
+          errorService.handleError(error);
 
+          if (config.panicOnError) {
+            // Commit current batch before throwing
+            if (!config.dryRun && destDb.isOpen() && transactionActive) {
               try {
-                if (fs.existsSync(destFilePath)) {
-                  if (config.permaDelete) {
-                    await recycleUtility.permanentDelete(destFilePath);
-                    logger.log(`(replicate-service)> Permanently deleted: ${relativePath}`);
-                  } else {
-                    await recycleUtility.moveToRecycle(destFilePath);
-                    logger.log(`(replicate-service)> Moved to recycle: ${relativePath}`);
-                  }
-                }
-
-                destDb.deleteFile(relativePath);
-                progressService.incrementFilesDeleted();
-              } catch (error) {
-                logger.logNegative(`(replicate-service)> Error deleting: ${relativePath}`);
-                progressService.addError(`Error deleting ${relativePath}: ${(error as Error).message}`);
+                destDb.commitTransaction();
+                transactionActive = false;
+                filesProcessedInBatch = 0;
+              } catch (commitError) {
+                logger.logNegative(`(replicate-service)> Error committing batch: ${(commitError as Error).message}`);
               }
             }
+            throw error;
           }
         }
-
-        // Update destination summary
-        if (!config.dryRun && destDb.isOpen()) {
-          const now = Date.now();
-          const existingSummary = destDb.getSummary();
-          const result = progressService.getExecutionResult();
-
-          if (result) {
-            destDb.upsertSummary({
-              total_files: sourceFiles.length,
-              total_size: result.totalBytesProcessed,
-              created_at: existingSummary?.created_at || now,
-              modified_at: now,
-            });
-          }
-        }
-
-        if (!config.dryRun && destDb.isOpen()) {
-          destDb.commitTransaction();
-        }
-
-        const result = progressService.getExecutionResult();
-        const success = result && result.filesRecoveryFailed === 0;
-        progressService.completeExecution(success || false);
-      } catch (error) {
-        if (!config.dryRun && destDb.isOpen()) {
-          destDb.rollbackTransaction();
-        }
-        throw error;
       }
 
-      // Complete operation logs
+      // Commit any remaining files in the current batch
+      if (!config.dryRun && destDb.isOpen() && transactionActive) {
+        destDb.commitTransaction();
+        transactionActive = false;
+      }
+
+      // Handle deletions (files in dest but not in source)
+      if (!config.dryRun && destDb.isOpen()) {
+        destDb.beginTransaction();
+        transactionActive = true;
+        const sourceFileSet = new Set(sourceFiles.map((f) => f.relative_path));
+
+        for (const [relativePath] of destFileMap) {
+          if (!sourceFileSet.has(relativePath)) {
+            const destFilePath = joinPath(config.destDir, relativePath);
+
+            try {
+              if (fs.existsSync(destFilePath)) {
+                if (config.permaDelete) {
+                  await recycleUtility.permanentDelete(destFilePath);
+                  logger.log(`(replicate-service)> Permanently deleted: ${relativePath}`);
+                } else {
+                  await recycleUtility.moveToRecycle(destFilePath);
+                  logger.log(`(replicate-service)> Moved to recycle: ${relativePath}`);
+                }
+              }
+
+              destDb.deleteFile(relativePath);
+              progressService.incrementFilesDeleted();
+            } catch (error) {
+              logger.logNegative(`(replicate-service)> Error deleting: ${relativePath}`);
+              progressService.addError(`Error deleting ${relativePath}: ${(error as Error).message}`);
+            }
+          }
+        }
+        destDb.commitTransaction();
+        transactionActive = false;
+      }
+
+      // Update destination summary
       const result = progressService.getExecutionResult();
+      if (!config.dryRun && destDb.isOpen()) {
+        destDb.beginTransaction();
+        transactionActive = true;
+        const now = Date.now();
+        const existingSummary = destDb.getSummary();
+
+        if (result) {
+          destDb.upsertSummary({
+            total_files: sourceFiles.length,
+            total_size: result.totalBytesProcessed,
+            created_at: existingSummary?.created_at || now,
+            modified_at: now,
+          });
+        }
+        destDb.commitTransaction();
+        transactionActive = false;
+      }
+
+      const success = result && result.filesRecoveryFailed === 0;
+      progressService.completeExecution(success || false);
+
+      // Complete operation logs
       if (sourceOpId !== null && result) {
         sourceDb.completeOperation(sourceOpId, result.success, result.errorCount);
       }

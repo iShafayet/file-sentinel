@@ -8,6 +8,7 @@ const constants = {
   RECYCLE_DIR_NAME: ".fs-recycle",
   DEFAULT_IO_TIMEOUT_SECONDS: 30,
   DEFAULT_HASH_ALGORITHM: "sha256",
+  DB_BATCH_COMMIT_SIZE: 100, // Commit database transaction after processing this many files
 
   crypto: {
     HASH_ALGO_SHA256: "sha256",
